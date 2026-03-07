@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
-import AdminOverview from './admin/AdminOverview';
-import ShelterManager from './admin/ShelterManager';
-import ContentModerator from './admin/ContentModerator';
-import ReportManager from './admin/ReportManager';
-import CategoryEditor from './admin/CategoryEditor';
+import Sidebar from '../../components/Sidebar';
+import AdminOverview from './AdminOverview';
+import ShelterManager from './ShelterManager';
+import ContentModerator from './ContentModerator';
+import ReportManager from './ReportManager';
+import CategoryEditor from './CategoryEditor';
 import { 
   LayoutDashboard, 
   Home, 

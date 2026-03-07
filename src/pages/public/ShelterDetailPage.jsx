@@ -1,28 +1,68 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { MapPin, Phone, Mail, Globe, ArrowLeft, Heart } from 'lucide-react';
-import AnimalCard from '../components/AnimalCard';
-import Navbar from '../components/Navbar';
-import { SHELTERS, ANIMALS } from '../data/mockData';
-import AdoptionFormModal from '../components/AdoptionFormModal';
-import Modal from '../components/Modal';
-import { useAuth } from '../context/AuthContext';
+import AnimalCard from '../../components/AnimalCard';
+import Navbar from '../../components/Navbar';
+import { getShelterById } from '../../services/public/sheltersService';
+import { getPets } from '../../services/public/petsService';
+import AdoptionFormModal from '../../components/AdoptionFormModal';
+import Modal from '../../components/Modal';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const ShelterDetailPage = () => {
     const { id } = useParams();
     const { user } = useAuth();
-    const shelter = SHELTERS.find(s => s.id === parseInt(id)) || SHELTERS[0];
-    const animals = ANIMALS.filter(a => a.shelterId === parseInt(id));
+    const toast = useToast();
+    
+    // API States
+    const [shelter, setShelter] = useState(null);
+    const [animals, setAnimals] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     // Modal States
     const [activeModal, setActiveModal] = useState(null);
     const [selectedAnimal, setSelectedAnimal] = useState(null);
 
+    // Fetch shelter and animals on mount
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            setError(null);
+
+            // Fetch shelter details
+            const shelterResult = await getShelterById(id);
+            if (!shelterResult.success) {
+                setError(shelterResult.error || 'Failed to load shelter details');
+                toast.error('Không thể tải thông tin trạm: ' + shelterResult.error);
+                setLoading(false);
+                return;
+            }
+            setShelter(shelterResult.data);
+
+            // Fetch all animals and filter by shelterId
+            const petsResult = await getPets({ page: 1, pageSize: 100 });
+            if (petsResult.success) {
+                const shelterAnimals = (petsResult.data.items || []).filter(
+                    animal => animal.shelterId === parseInt(id)
+                );
+                setAnimals(shelterAnimals);
+            } else {
+                toast.error('Không thể tải danh sách thú cưng: ' + petsResult.error);
+            }
+
+            setLoading(false);
+        };
+
+        fetchData();
+    }, [id, toast]);
+
     const handleAction = (type, animal) => {
         setSelectedAnimal(animal);
         if (type === 'adopt') {
             if (!user) {
-                alert('Vui lòng đăng nhập để đăng ký nhận nuôi!');
+                toast.warning('Vui lòng đăng nhập để đăng ký nhận nuôi!');
                 return;
             }
             setActiveModal('adoptForm');
@@ -35,6 +75,44 @@ const ShelterDetailPage = () => {
         <div style={{ backgroundColor: '#fff', minHeight: '100vh', fontFamily: 'var(--font-main)' }}>
             <Navbar />
             
+            {/* Loading State */}
+            {loading && (
+                <div style={{ textAlign: 'center', padding: '100px 20px' }}>
+                    <div style={{ 
+                        display: 'inline-block',
+                        border: '4px solid #f3f3f3',
+                        borderTop: '4px solid #3b82f6',
+                        borderRadius: '50%',
+                        width: '50px',
+                        height: '50px',
+                        animation: 'spin 1s linear infinite'
+                    }} />
+                    <p style={{ marginTop: '20px', color: '#666' }}>Đang tải thông tin trạm...</p>
+                </div>
+            )}
+
+            {/* Error State */}
+            {error && !loading && (
+                <div style={{ maxWidth: '800px', margin: '100px auto', padding: '0 20px' }}>
+                    <div style={{ 
+                        background: '#fee2e2', 
+                        color: '#dc2626',
+                        padding: '40px',
+                        borderRadius: '12px',
+                        textAlign: 'center'
+                    }}>
+                        <h2 style={{ marginBottom: '10px' }}>⚠️ Không thể tải dữ liệu</h2>
+                        <p>{error}</p>
+                        <Link to="/shelters" className="btn btn-primary" style={{ marginTop: '20px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                            <ArrowLeft size={16} /> Quay lại danh sách
+                        </Link>
+                    </div>
+                </div>
+            )}
+
+            {/* Content */}
+            {!loading && !error && shelter && (
+            <>
             {/* Hero */}
             <div style={{ position: 'relative', height: '300px' }}>
                 <img src={shelter.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={shelter.name} />
@@ -116,6 +194,8 @@ const ShelterDetailPage = () => {
                     <button onClick={() => setActiveModal(null)} className="btn btn-primary" style={{ marginTop: '1rem' }}>Đóng</button>
                   </div>
               </Modal>
+            </>
+            )}
 
         </div>
     );

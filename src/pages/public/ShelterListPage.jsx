@@ -1,14 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Filter, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import Navbar from '../components/Navbar';
-import { SHELTERS } from '../data/mockData';
+import Navbar from '../../components/Navbar';
+import { getShelters } from '../../services/public/sheltersService';
+import { useToast } from '../../context/ToastContext';
 
 const ShelterListPage = () => {
+  const toast = useToast();
   const [regionFilter, setRegionFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // API States
+  const [shelters, setShelters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filteredShelters = SHELTERS.filter(shelter => {
+  // Fetch shelters from API
+  useEffect(() => {
+    const fetchShelters = async () => {
+      setLoading(true);
+      setError(null);
+
+      const result = await getShelters({ page: 1, pageSize: 50 });
+
+      if (result.success) {
+        setShelters(result.data.items || []);
+      } else {
+        setError(result.error);
+        toast.error('Failed to load shelters: ' + result.error);
+      }
+
+      setLoading(false);
+    };
+
+    fetchShelters();
+  }, [toast]);
+
+  const filteredShelters = shelters.filter(shelter => {
     // Determine region match. If filter is 'All', it matches.
     // Otherwise, check if shelter.region (e.g. 'Miền Bắc') includes the filter keyword (e.g. 'Bắc')
     let matchesRegion = regionFilter === 'All';
@@ -35,7 +63,39 @@ const ShelterListPage = () => {
            <p style={{ color: 'var(--gray)', fontSize: '1.1rem' }}>Kết nối với các trạm cứu hộ uy tín trên toàn quốc.</p>
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ 
+              display: 'inline-block',
+              border: '4px solid #f3f3f3',
+              borderTop: '4px solid #3b82f6',
+              borderRadius: '50%',
+              width: '50px',
+              height: '50px',
+              animation: 'spin 1s linear infinite'
+            }} />
+            <p style={{ marginTop: '20px', color: '#666' }}>Đang tải danh sách trạm...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <div style={{ 
+            background: '#fee2e2', 
+            color: '#dc2626',
+            padding: '20px',
+            borderRadius: '8px',
+            textAlign: 'center',
+            marginBottom: '20px'
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
+
         {/* Controls */}
+        {!loading && !error && (
+        <>
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '3rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }} className="animate-slideUp delay-100">
            
            <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
@@ -108,6 +168,8 @@ const ShelterListPage = () => {
              </div>
            ))}
         </div>
+        </>
+        )}
 
       </div>
       </div>

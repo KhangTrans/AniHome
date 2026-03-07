@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Heart, Bell, User, LogIn, LayoutDashboard, CreditCard, CheckCircle, PawPrint, Calendar, Mail, ArrowRight, Filter, MapPin } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import AnimalCard from '../components/AnimalCard';
-import Modal from '../components/Modal';
-import { useAuth } from '../context/AuthContext';
-import AdoptionFormModal from '../components/AdoptionFormModal';
-
-import { ANIMALS } from '../data/mockData';
-import Navbar from '../components/Navbar';
+import AnimalCard from '../../components/AnimalCard';
+import Modal from '../../components/Modal';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
+import AdoptionFormModal from '../../components/AdoptionFormModal';
+import { getPets } from '../../services/public/petsService';
+import Navbar from '../../components/Navbar';
 
 const UserLandingPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const { user } = useAuth(); 
+  const toast = useToast();
   
   // Modal States
   const [activeModal, setActiveModal] = useState(null); // 'adoptForm', 'donate', 'success', 'success_donate'
@@ -19,7 +20,33 @@ const UserLandingPage = () => {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
   const [categoryFilter, setCategoryFilter] = useState('All');
   
+  // API States
+  const [animals, setAnimals] = useState([]);
+  // const [loading, setLoading] = useState(true);
+  // const [error, setError] = useState(null);
+  
   const carouselRef = useRef(null);
+
+  // Fetch pets from API
+  useEffect(() => {
+    const fetchPets = async () => {
+      setLoading(true);
+      setError(null);
+
+      const result = await getPets({ page: 1, pageSize: 50 });
+
+      if (result.success) {
+        setAnimals(result.data.items || []);
+      } else {
+        setError(result.error);
+        toast.error('Failed to load pets: ' + result.error);
+      }
+
+      setLoading(false);
+    };
+
+    fetchPets();
+  }, [toast]);
 
   useEffect(() => {
     const scrollContainer = carouselRef.current;
@@ -37,9 +64,6 @@ const UserLandingPage = () => {
     return () => clearInterval(scrollInterval);
   }, []);
 
-  // Use the imported rich data
-  const animals = ANIMALS;
-
   const stories = [
     { id: 1, title: 'Hành trình của Bella', text: 'Từ chú chó hoang thành cục cưng sofa!', img: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=200&q=80' },
     { id: 2, title: 'Đôi chân kỳ diệu', text: 'Mèo con 3 chân tìm được mái ấm.', img: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=200&q=80' },
@@ -56,7 +80,7 @@ const UserLandingPage = () => {
       setSelectedAnimal(animal);
       if (type === 'adopt') {
          if (!user) {
-             alert('Vui lòng đăng nhập để đăng ký nhận nuôi!');
+             toast.warning('Vui lòng đăng nhập để đăng ký nhận nuôi!');
              return;
          }
          setActiveModal('adoptForm');

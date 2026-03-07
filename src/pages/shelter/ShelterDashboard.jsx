@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
-import ShelterOverview from './shelter/ShelterOverview';
-import AnimalManager from './shelter/AnimalManager';
-import ScheduleManager from './shelter/ScheduleManager';
-import InventoryManager from './shelter/InventoryManager';
+import Sidebar from '../../components/Sidebar';
+import ShelterOverview from './ShelterOverview';
+import AnimalManager from './AnimalManager';
+import ScheduleManager from './ScheduleManager';
+import InventoryManager from './InventoryManager';
 import { 
   Home, 
   Calendar, 
