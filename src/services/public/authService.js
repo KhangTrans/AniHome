@@ -62,10 +62,11 @@ export const login = async (usernameOrEmail, password) => {
     
     try {
       const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+      console.log('Decoded Token Payload:', tokenPayload); // IN RA ĐỂ XEM
       
       // Backend có thể lưu role/roleId/RoleId trong token
-      roleID = tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || 4;
-      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || null;
+      roleID = Number(tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || tokenPayload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) || 4;
+      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || tokenPayload.nameid || tokenPayload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || null;
     } catch {
       // Use default roleID = 4 if token decode fails
     }
@@ -129,8 +130,9 @@ export const loginWithGoogle = async (googleToken) => {
     
     try {
       const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
-      roleID = tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || 4;
-      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || null;
+      console.log('Decoded Google Token Payload:', tokenPayload); // IN RA
+      roleID = Number(tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || tokenPayload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) || 4;
+      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || tokenPayload.nameid || tokenPayload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || null;
     } catch {
       // Use default roleID = 4 if token decode fails
     }

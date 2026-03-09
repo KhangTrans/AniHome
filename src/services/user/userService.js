@@ -11,14 +11,16 @@ import axiosInstance from '../axiosConfig';
  * Đổi mật khẩu
  * 
  * @param {Object} passwordData
- * @param {string} passwordData.currentPassword - Mật khẩu hiện tại
+ * @param {number} passwordData.userId - ID của user
+ * @param {string} passwordData.oldPassword - Mật khẩu hiện tại
  * @param {string} passwordData.newPassword - Mật khẩu mới
  * @param {string} passwordData.confirmNewPassword - Xác nhận mật khẩu mới
  */
 export const changePassword = async (passwordData) => {
   try {
     const response = await axiosInstance.post('/Auth/change-password', {
-      currentPassword: passwordData.currentPassword,
+      userId: passwordData.userId,
+      oldPassword: passwordData.oldPassword,
       newPassword: passwordData.newPassword,
       confirmNewPassword: passwordData.confirmNewPassword,
     });
@@ -41,35 +43,43 @@ export const changePassword = async (passwordData) => {
  * Cập nhật thông tin profile
  * 
  * @param {Object} profileData
+ * @param {number} profileData.userId - ID của user
  * @param {string} profileData.fullName - Họ tên
- * @param {string} profileData.email - Email
- * @param {string} profileData.phone - Số điện thoại (optional)
- * @param {string} profileData.address - Địa chỉ (optional)
- * @param {string} profileData.avatar - URL avatar (optional)
+ * @param {string} profileData.phone - Số điện thoại
+ * @param {string} profileData.avatarUrl - URL avatar (đã upload)
  */
 export const updateProfile = async (profileData) => {
   try {
-    const response = await axiosInstance.put('/Auth/update-profile', {
-      fullName: profileData.fullName,
+    const payload = {
+      userId: Number(profileData.userId),
       email: profileData.email,
-      phone: profileData.phone || '',
-      address: profileData.address || '',
-      avatar: profileData.avatar || '',
-    });
+      fullName: profileData.fullName,
+      phone: profileData.phone || null,
+      avatarUrl: profileData.avatarUrl || null,
+    };
     
-    // Cập nhật user info trong localStorage
-    const updatedUser = response.data;
-    localStorage.setItem('user', JSON.stringify(updatedUser));
+    console.log('📤 updateProfile payload:', JSON.stringify(payload, null, 2));
     
+    const response = await axiosInstance.put('/Auth/update-profile', payload);
+    
+    const message = response.data.message || 'Cập nhật hồ sơ thành công!';
     return {
       success: true,
-      data: updatedUser,
-      message: 'Cập nhật profile thành công!',
+      message,
     };
   } catch (error) {
+    console.error("Lỗi update profile raw: ", error); // In test ra FE
+    // Extract ASP.NET validation errors if any
+    let errorMessage = error.response?.data?.message || 'Failed to update profile';
+    if (!error.response?.data?.message && error.response?.data?.errors) {
+      const errors = error.response.data.errors;
+      const firstKey = Object.keys(errors)[0];
+      errorMessage = errors[firstKey][0];
+    }
+
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to update profile',
+      error: errorMessage,
     };
   }
 };
