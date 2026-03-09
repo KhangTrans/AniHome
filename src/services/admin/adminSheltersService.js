@@ -44,6 +44,27 @@ export const getAllShelters = async (params = {}) => {
 };
 
 /**
+ * GET /api/shelters/{id}
+ * Lấy thông tin chi tiết trạm cứu hộ (bao gồm danh sách pets)
+ * 
+ * @param {number} id - Shelter ID
+ */
+export const getShelterDetail = async (id) => {
+  try {
+    const response = await axiosInstance.get(`/shelters/${id}`);
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to fetch shelter detail',
+    };
+  }
+};
+
+/**
  * POST /api/admin/shelters
  * Tạo shelter mới (Admin only)
  */
