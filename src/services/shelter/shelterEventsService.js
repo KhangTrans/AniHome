@@ -13,14 +13,14 @@ import axiosInstance from '../axiosConfig';
  * 
  * @param {number} shelterId - Shelter ID
  * @param {Object} params - Query params
- * @param {string} params.startDate - Filter from date (optional)
- * @param {string} params.endDate - Filter to date (optional)
+ * @param {string} params.from - Ngày bắt đầu (YYYY-MM-DD)
+ * @param {string} params.to - Ngày kết thúc (YYYY-MM-DD)
  */
 export const getShelterEvents = async (shelterId, params = {}) => {
   try {
     const queryParams = {
-      ...(params.startDate && { startDate: params.startDate }),
-      ...(params.endDate && { endDate: params.endDate }),
+      ...(params.from && { from: params.from }),
+      ...(params.to && { to: params.to }),
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
@@ -48,30 +48,30 @@ export const getShelterEvents = async (shelterId, params = {}) => {
  * 
  * @param {number} shelterId - Shelter ID
  * @param {Object} eventData - Event information
- * @param {string} eventData.title - Tiêu đề sự kiện
+ * @param {string} eventData.eventName - Tên sự kiện
+ * @param {string} eventData.eventDate - Ngày giờ (ISO string)
+ * @param {string} eventData.eventType - Loại (HealthCheckup/Vaccination/Adoption/Training/Grooming/Other)
+ * @param {number} eventData.petID - Pet ID (optional)
  * @param {string} eventData.description - Mô tả
- * @param {string} eventData.eventType - Loại sự kiện (adoption_drive, fundraising, volunteer_day, etc.)
- * @param {string} eventData.startTime - Thời gian bắt đầu (ISO string)
- * @param {string} eventData.endTime - Thời gian kết thúc (ISO string)
  * @param {string} eventData.location - Địa điểm
- * @param {number} eventData.maxParticipants - Số người tham gia tối đa (optional)
+ * @param {number} eventData.reminderBefore - Nhắc trước bao nhiêu giờ
  */
 export const createShelterEvent = async (shelterId, eventData) => {
   try {
     const response = await axiosInstance.post(`/manage-shelter/${shelterId}/events`, {
-      title: eventData.title,
-      description: eventData.description,
+      eventName: eventData.eventName,
+      eventDate: eventData.eventDate,
       eventType: eventData.eventType,
-      startTime: eventData.startTime,
-      endTime: eventData.endTime,
+      petID: eventData.petID || null,
+      description: eventData.description,
       location: eventData.location,
-      maxParticipants: eventData.maxParticipants || null,
+      reminderBefore: eventData.reminderBefore || null,
     });
     
     return {
       success: true,
       data: response.data,
-      message: 'Tạo sự kiện thành công!',
+      message: response.data?.message || 'Thêm lịch hẹn thành công.',
     };
   } catch (error) {
     return {
@@ -82,76 +82,20 @@ export const createShelterEvent = async (shelterId, eventData) => {
 };
 
 /**
- * Utility: Event types
+ * Utility: Event types theo API spec
  */
 export const EVENT_TYPES = [
-  { value: 'adoption_drive', label: 'Ngày Nhận Nuôi', icon: '❤️', color: '#ef4444' },
-  { value: 'fundraising', label: 'Gây Quỹ', icon: '💰', color: '#10b981' },
-  { value: 'volunteer_day', label: 'Ngày Tình Nguyện', icon: '🙋', color: '#3b82f6' },
-  { value: 'education', label: 'Giáo Dục Cộng Đồng', icon: '📚', color: '#8b5cf6' },
-  { value: 'health_checkup', label: 'Khám Sức Khỏe', icon: '💊', color: '#f59e0b' },
-  { value: 'other', label: 'Khác', icon: '📅', color: '#6b7280' },
+  { value: 'HealthCheckup', label: 'Khám Sức Khỏe', icon: '🩺', color: '#1890FF' },
+  { value: 'Vaccination', label: 'Tiêm Vaccine', icon: '💉', color: '#F5222D' },
+  { value: 'Adoption', label: 'Lịch Hẹn Nhận Nuôi', icon: '❤️', color: '#eb2f96' },
+  { value: 'Training', label: 'Huấn Luyện', icon: '🎓', color: '#722ED1' },
+  { value: 'Grooming', label: 'Tắm Rửa / Chăm Sóc', icon: '✂️', color: '#52C41A' },
+  { value: 'Other', label: 'Khác', icon: '📅', color: '#8c8c8c' },
 ];
 
 /**
- * Utility: Validate event data
+ * Utility: Get event type info
  */
-export const validateEventData = (data) => {
-  const errors = {};
-  
-  if (!data.title) errors.title = 'Vui lòng nhập tiêu đề';
-  if (!data.eventType) errors.eventType = 'Vui lòng chọn loại sự kiện';
-  if (!data.startTime) errors.startTime = 'Vui lòng chọn thời gian bắt đầu';
-  if (!data.endTime) errors.endTime = 'Vui lòng chọn thời gian kết thúc';
-  if (!data.location) errors.location = 'Vui lòng nhập địa điểm';
-  
-  if (data.startTime && data.endTime) {
-    const start = new Date(data.startTime);
-    const end = new Date(data.endTime);
-    
-    if (end <= start) {
-      errors.endTime = 'Thời gian kết thúc phải sau thời gian bắt đầu';
-    }
-  }
-  
-  if (data.maxParticipants && data.maxParticipants < 1) {
-    errors.maxParticipants = 'Số người tham gia phải lớn hơn 0';
-  }
-  
-  return {
-    isValid: Object.keys(errors).length === 0,
-    errors,
-  };
-};
-
-/**
- * Utility: Format event date range
- */
-export const formatEventDateRange = (startTime, endTime) => {
-  const start = new Date(startTime);
-  const end = new Date(endTime);
-  
-  const dateOptions = { day: '2-digit', month: '2-digit', year: 'numeric' };
-  const timeOptions = { hour: '2-digit', minute: '2-digit' };
-  
-  const startDate = start.toLocaleDateString('vi-VN', dateOptions);
-  const startTimeStr = start.toLocaleTimeString('vi-VN', timeOptions);
-  const endTimeStr = end.toLocaleTimeString('vi-VN', timeOptions);
-  
-  return `${startDate} • ${startTimeStr} - ${endTimeStr}`;
-};
-
-/**
- * Utility: Check if event is upcoming
- */
-export const isEventUpcoming = (startTime) => {
-  return new Date(startTime) > new Date();
-};
-
-/**
- * Utility: Check if event is ongoing
- */
-export const isEventOngoing = (startTime, endTime) => {
-  const now = new Date();
-  return new Date(startTime) <= now && now <= new Date(endTime);
+export const getEventTypeInfo = (eventType) => {
+  return EVENT_TYPES.find(t => t.value === eventType) || EVENT_TYPES[EVENT_TYPES.length - 1];
 };

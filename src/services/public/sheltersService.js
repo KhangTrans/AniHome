@@ -1,35 +1,42 @@
 import axiosInstance from '../axiosConfig';
 
 /**
- * 🏥 PUBLIC SHELTERS APIs - /api/shelters
+ * 🏥 PUBLIC SHELTERS APIs - /api/Shelters
  * Không cần authentication
+ * 
+ * Backend Response Format:
+ * {
+ *   items: [{ shelterID, shelterName, location, regionName, totalPets }],
+ *   totalCount, currentPage, pageSize, totalPages
+ * }
  */
 
 /**
- * GET /api/shelters
- * Danh sách trạm cứu hộ
+ * GET /api/Shelters
+ * Danh sách trạm cứu hộ với filter, search và pagination
  * 
  * @param {Object} params - Query parameters
- * @param {string} params.location - Lọc theo địa điểm (optional)
- * @param {string} params.status - Active/Inactive (optional)
+ * @param {string} params.keyword - Tìm kiếm theo tên shelter (optional)
+ * @param {number} params.regionID - Lọc theo vùng/miền (optional)
  * @param {number} params.page - Trang hiện tại (default: 1)
- * @param {number} params.pageSize - Số lượng mỗi trang (default: 10)
+ * @param {number} params.pageSize - Số lượng mỗi trang (default: 6)
+ * @returns {Object} { success, data: { items, totalCount, currentPage, pageSize, totalPages }, error }
  */
 export const getShelters = async (params = {}) => {
   try {
     const queryParams = {
       page: params.page || 1,
-      pageSize: params.pageSize || 10,
-      ...(params.location && { location: params.location }),
-      ...(params.status && { status: params.status }),
+      pageSize: params.pageSize || 6,
+      ...(params.keyword && { keyword: params.keyword }),
+      ...(params.regionID && { regionID: params.regionID }),
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const response = await axiosInstance.get(`/shelters?${queryString}`);
+    const response = await axiosInstance.get(`/Shelters?${queryString}`);
     
     return {
       success: true,
-      data: response.data,
+      data: response.data, // { items, totalCount, currentPage, pageSize, totalPages }
     };
   } catch (error) {
     return {
@@ -40,18 +47,19 @@ export const getShelters = async (params = {}) => {
 };
 
 /**
- * GET /api/shelters/{id}
- * Chi tiết trạm cứu hộ
+ * GET /api/Shelters/{id}
+ * Lấy thông tin chi tiết của trạm cứu hộ
  * 
- * @param {number} id - Shelter ID
+ * @param {number} shelterID - ID của trạm cứu hộ
+ * @returns {Object} { success, data: { shelterID, shelterName, location, regionName, totalPets, description, createdAt }, error }
  */
-export const getShelterById = async (id) => {
+export const getShelterById = async (shelterID) => {
   try {
-    const response = await axiosInstance.get(`/shelters/${id}`);
+    const response = await axiosInstance.get(`/Shelters/${shelterID}`);
     
     return {
       success: true,
-      data: response.data,
+      data: response.data, // { shelterID, shelterName, location, regionName, totalPets, description, createdAt }
     };
   } catch (error) {
     return {

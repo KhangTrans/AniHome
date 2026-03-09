@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Mail, User, UserCircle, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Lock, Mail, User, UserCircle, ArrowLeft, AlertCircle, CheckCircle } from 'lucide-react';
 import { validateRegistrationForm } from '../../utils/validation';
 
 const RegisterPage = () => {
@@ -14,10 +14,21 @@ const RegisterPage = () => {
   });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  // Auto redirect after 3 seconds when registration successful
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        navigate('/login');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,6 +49,7 @@ const RegisterPage = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setServerError('');
+    setSuccessMessage('');
     
     // Validate form
     const validation = validateRegistrationForm(formData);
@@ -53,14 +65,16 @@ const RegisterPage = () => {
       const result = await register(formData);
       
       if (result.success) {
-        // Redirect based on role (mặc định roleID = 4 cho user thường)
-        const roleID = result.user.roleID;
-        switch (roleID) {
-          case 1: navigate('/admin'); break;
-          case 2: navigate('/shelter'); break;
-          case 3: navigate('/volunteer'); break;
-          default: navigate('/');
-        }
+        // Hiển thị success message trên form
+        setSuccessMessage(result.message || 'Đăng ký thành công! Đang chuyển đến trang đăng nhập...');
+        // Clear form
+        setFormData({
+          username: '',
+          email: '',
+          password: '',
+          confirmNewPassword: '',
+          fullName: '',
+        });
       } else {
         setServerError(result.message);
       }
@@ -125,6 +139,34 @@ const RegisterPage = () => {
           <h2 style={{ fontSize: '2rem', color: 'var(--primary)', fontWeight: '800' }}>Create Account</h2>
           <p style={{ color: 'var(--gray)' }}>Join our rescue community</p>
         </div>
+
+        {successMessage && (
+          <div style={{ 
+            background: '#d1fae5', 
+            color: '#065f46', 
+            padding: '1rem', 
+            borderRadius: '12px', 
+            marginBottom: '1.5rem', 
+            fontSize: '0.9rem',
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            border: '1px solid #10b981'
+          }}>
+            <CheckCircle size={20} />
+            <div>
+              <div style={{ fontWeight: '600' }}>{successMessage}</div>
+              <div style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                Tự động chuyển sau 3 giây hoặc{' '}
+                <Link to="/login" style={{ color: '#065f46', fontWeight: '700', textDecoration: 'underline' }}>
+                  click vào đây
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         {serverError && (
           <div style={{ 
@@ -277,16 +319,16 @@ const RegisterPage = () => {
           <button 
             type="submit" 
             className="btn btn-primary" 
-            disabled={isSubmitting}
+            disabled={isSubmitting || successMessage}
             style={{ 
               justifyContent: 'center', 
               padding: '1rem', 
               marginTop: '0.5rem',
-              opacity: isSubmitting ? 0.7 : 1,
-              cursor: isSubmitting ? 'not-allowed' : 'pointer'
+              opacity: (isSubmitting || successMessage) ? 0.7 : 1,
+              cursor: (isSubmitting || successMessage) ? 'not-allowed' : 'pointer'
             }}
           >
-            {isSubmitting ? 'Creating Account...' : 'Sign Up'}
+            {isSubmitting ? 'Creating Account...' : successMessage ? 'Registration Successful!' : 'Sign Up'}
           </button>
         </form>
 

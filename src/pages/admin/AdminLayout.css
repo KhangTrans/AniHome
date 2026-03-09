@@ -1,0 +1,130 @@
+/* Admin Layout Styles - Updated for Ant Design */
+
+/* Mobile Header */
+.admin-mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 60px;
+}
+
+.admin-mobile-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-mobile-menu-btn {
+  background: transparent;
+  padding: 0.5rem;
+  color: var(--dark);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.admin-mobile-menu-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.admin-mobile-title {
+  font-weight: bold;
+  font-size: 1.125rem;
+  margin: 0;
+  color: var(--dark);
+}
+
+/* Desktop Layout */
+@media (min-width: 768px) {
+  .admin-mobile-header {
+    display: none;
+  }
+}
+
+
+/* Page Header */
+.admin-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-page-title-wrapper {
+  flex: 1;
+  min-width: 200px;
+}
+
+.admin-page-title {
+  font-size: 1.5rem;
+  color: var(--dark);
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.admin-page-subtitle {
+  color: var(--gray);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.admin-page-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Charts Grid */
+.admin-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+  .admin-charts-grid {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* Stats Cards Grid */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+/* Mobile Text Utilities */
+.hide-mobile-text {
+  display: inline;
+}
+
+.show-mobile-text {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .hide-mobile-text {
+    display: none;
+  }
+
+  .show-mobile-text {
+    display: inline !important;
+  }
+}

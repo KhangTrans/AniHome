@@ -17,7 +17,7 @@ import axiosInstance from '../axiosConfig';
  */
 export const changePassword = async (passwordData) => {
   try {
-    const response = await axiosInstance.post('/auth/change-password', {
+    const response = await axiosInstance.post('/Auth/change-password', {
       currentPassword: passwordData.currentPassword,
       newPassword: passwordData.newPassword,
       confirmNewPassword: passwordData.confirmNewPassword,
@@ -49,7 +49,7 @@ export const changePassword = async (passwordData) => {
  */
 export const updateProfile = async (profileData) => {
   try {
-    const response = await axiosInstance.put('/auth/update-profile', {
+    const response = await axiosInstance.put('/Auth/update-profile', {
       fullName: profileData.fullName,
       email: profileData.email,
       phone: profileData.phone || '',
@@ -82,7 +82,7 @@ export const updateProfile = async (profileData) => {
  */
 export const getUserProfile = async (userId) => {
   try {
-    const response = await axiosInstance.get(`/auth/profile/${userId}`);
+    const response = await axiosInstance.get(`/Auth/profile/${userId}`);
     
     return {
       success: true,
@@ -108,7 +108,7 @@ export const refreshToken = async () => {
       throw new Error('No refresh token found');
     }
     
-    const response = await axiosInstance.post('/auth/refresh-token', {
+    const response = await axiosInstance.post('/Auth/refresh-token', {
       refreshToken: refreshTokenStr,
     });
     
@@ -145,7 +145,7 @@ export const refreshToken = async () => {
  */
 export const logout = async (userId) => {
   try {
-    await axiosInstance.post(`/auth/logout/${userId}`);
+    await axiosInstance.post(`/Auth/logout/${userId}`);
     
     // Clear local storage
     localStorage.removeItem('accessToken');

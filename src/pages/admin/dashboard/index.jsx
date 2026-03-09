@@ -10,8 +10,8 @@ import {
 } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import { Pie, Bar } from 'react-chartjs-2';
-import { getAdminDashboard } from '../../services/admin/adminDashboardService';
-import { useToast } from '../../context/ToastContext';
+import { getAdminDashboard } from '../../../services/admin/adminDashboardService';
+import { useToast } from '../../../context/ToastContext';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 

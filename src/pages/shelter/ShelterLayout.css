@@ -1,0 +1,58 @@
+/* Shelter Layout Styles */
+
+/* Mobile Header */
+.shelter-mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 60px;
+}
+
+.shelter-mobile-header-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.shelter-mobile-menu-btn {
+  background: transparent;
+  padding: 0.5rem;
+  color: var(--dark);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+  transition: background-color 0.2s;
+}
+
+.shelter-mobile-menu-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.shelter-mobile-title {
+  font-weight: bold;
+  font-size: 1.125rem;
+  margin: 0;
+  color: var(--dark);
+}
+
+/* Desktop Layout */
+@media (min-width: 768px) {
+  .shelter-mobile-header {
+    display: none;
+  }
+}
+
+/* Sider Styles */
+.shelter-sider {
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+}

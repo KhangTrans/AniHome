@@ -1,111 +1,305 @@
 import React, { useState } from 'react';
-import { Package, ShoppingBag, Plus, AlertCircle } from 'lucide-react';
+import { Card, Tabs, Table, Tag, Button, Space, Row, Col, Progress, Statistic } from 'antd';
+import { Package, ShoppingBag, Plus, AlertCircle, TrendingUp, DollarSign } from 'lucide-react';
+
+const { TabPane } = Tabs;
 
 const InventoryManager = () => {
-  const [activeTab, setActiveTab] = useState('supplies'); // supplies or shop
-
   const supplies = [
-    { id: 1, name: 'Dog Food (Dry)', quantity: '450 kg', status: 'Good', minReq: '100 kg' },
-    { id: 2, name: 'Cat Food (Wet)', quantity: '12 cans', status: 'Critical', minReq: '50 cans' },
-    { id: 3, name: 'Vaccines', quantity: '50 units', status: 'Low', minReq: '60 units' },
+    { 
+      id: 1, 
+      name: 'Thức Ăn Chó (Khô)', 
+      quantity: 450, 
+      unit: 'kg',
+      status: 'Good', 
+      minReq: 100,
+      percentage: 90
+    },
+    { 
+      id: 2, 
+      name: 'Thức Ăn Mèo (Ướt)', 
+      quantity: 12, 
+      unit: 'hộp',
+      status: 'Critical', 
+      minReq: 50,
+      percentage: 24
+    },
+    { 
+      id: 3, 
+      name: 'Vaccine', 
+      quantity: 50, 
+      unit: 'liều',
+      status: 'Low', 
+      minReq: 60,
+      percentage: 45
+    },
+    { 
+      id: 4, 
+      name: 'Xô Vệ Sinh Mèo', 
+      quantity: 180, 
+      unit: 'kg',
+      status: 'Good', 
+      minReq: 50,
+      percentage: 85
+    },
   ];
 
   const shopItems = [
-    { id: 1, name: 'Rescue T-Shirt', price: '$25.00', stock: 50, category: 'Apparel' },
-    { id: 2, name: 'Paw Print Mug', price: '$12.00', stock: 30, category: 'Accessories' },
+    { 
+      id: 1, 
+      name: 'Áo Rescue', 
+      price: 250000, 
+      stock: 50, 
+      category: 'Quần Áo',
+      sales: 120
+    },
+    { 
+      id: 2, 
+      name: 'Cốc In Hình Chân', 
+      price: 120000, 
+      stock: 30, 
+      category: 'Phụ Kiện',
+      sales: 85
+    },
+    { 
+      id: 3, 
+      name: 'Túi Vải Canvas', 
+      price: 180000, 
+      stock: 25, 
+      category: 'Phụ Kiện',
+      sales: 45
+    },
+  ];
+
+  const getStatusTag = (status) => {
+    const statusConfig = {
+      Good: { color: 'success', text: 'Đủ' },
+      Low: { color: 'warning', text: 'Thấp' },
+      Critical: { color: 'error', text: 'Rất Thấp' }
+    };
+    const config = statusConfig[status] || statusConfig.Good;
+    return <Tag color={config.color}>{config.text}</Tag>;
+  };
+
+  const suppliesColumns = [
+    {
+      title: 'Tên Vật Phẩm',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>
+    },
+    {
+      title: 'Số Lượng',
+      key: 'quantity',
+      render: (_, record) => `${record.quantity} ${record.unit}`
+    },
+    {
+      title: 'Mức Tối Thiểu',
+      key: 'minReq',
+      render: (_, record) => (
+        <span style={{ color: '#8c8c8c' }}>{record.minReq} {record.unit}</span>
+      )
+    },
+    {
+      title: 'Tình Trạng',
+      key: 'status',
+      render: (_, record) => (
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {getStatusTag(record.status)}
+          <Progress 
+            percent={record.percentage} 
+            size="small"
+            strokeColor={
+              record.status === 'Good' ? '#52C41A' : 
+              record.status === 'Low' ? '#FAAD14' : '#F5222D'
+            }
+            showInfo={false}
+          />
+        </Space>
+      )
+    },
+    {
+      title: 'Hành Động',
+      key: 'action',
+      render: () => (
+        <Space>
+          <Button type="link" size="small">Sửa</Button>
+          <Button type="link" danger size="small">Xóa</Button>
+        </Space>
+      )
+    }
+  ];
+
+  const shopColumns = [
+    {
+      title: 'Tên Sản Phẩm',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>
+    },
+    {
+      title: 'Danh Mục',
+      dataIndex: 'category',
+      key: 'category',
+      render: (category) => <Tag color="blue">{category}</Tag>
+    },
+    {
+      title: 'Giá',
+      dataIndex: 'price',
+      key: 'price',
+      render: (price) => (
+        <span style={{ color: '#FF6B6B', fontWeight: 500 }}>
+          {price.toLocaleString('vi-VN')}₫
+        </span>
+      )
+    },
+    {
+      title: 'Tồn Kho',
+      dataIndex: 'stock',
+      key: 'stock',
+      render: (stock) => (
+        <span style={{ color: stock < 20 ? '#F5222D' : '#52C41A' }}>
+          {stock} còn lại
+        </span>
+      )
+    },
+    {
+      title: 'Đã Bán',
+      dataIndex: 'sales',
+      key: 'sales'
+    },
+    {
+      title: 'Hành Động',
+      key: 'action',
+      render: () => (
+        <Space>
+          <Button type="link" size="small">Sửa</Button>
+          <Button type="link" danger size="small">Xóa</Button>
+        </Space>
+      )
+    }
   ];
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <div className="flex justify-between items-center mb-6">
-        <h1>Inventory & Shop</h1>
-        <div style={{ backgroundColor: 'white', padding: '0.25rem', borderRadius: '0.5rem', border: '1px solid #e5e7eb', display: 'flex' }}>
-           <button 
-             onClick={() => setActiveTab('supplies')}
-             style={{
-               padding: '0.5rem 1rem', 
-               borderRadius: '0.375rem', 
-               transition: 'all 0.2s',
-               border: 'none',
-               cursor: 'pointer',
-               backgroundColor: activeTab === 'supplies' ? '#dbeafe' : 'transparent',
-               color: activeTab === 'supplies' ? '#2563eb' : '#6b7280',
-               fontWeight: activeTab === 'supplies' ? 'bold' : 'normal'
-             }}
-           >
-             Supplies
-           </button>
-           <button 
-             onClick={() => setActiveTab('shop')}
-             style={{
-               padding: '0.5rem 1rem', 
-               borderRadius: '0.375rem', 
-               transition: 'all 0.2s',
-               border: 'none',
-               cursor: 'pointer',
-               backgroundColor: activeTab === 'shop' ? '#dbeafe' : 'transparent',
-               color: activeTab === 'shop' ? '#2563eb' : '#6b7280',
-               fontWeight: activeTab === 'shop' ? 'bold' : 'normal'
-             }}
-           >
-             Shop Products
-           </button>
-        </div>
-      </div>
+    <div>
+      {/* Header with Stats */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col span={24}>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
+            Kho & Cửa Hàng
+          </h1>
+        </Col>
+        
+        <Col xs={24} sm={8}>
+          <Card 
+            hoverable
+            style={{ borderLeft: '4px solid #FF6B6B' }}
+          >
+            <Statistic
+              title="Tổng Vật Phẩm"
+              value={supplies.length}
+              prefix={<Package size={24} style={{ color: '#FF6B6B' }} />}
+              valueStyle={{ color: '#FF6B6B' }}
+            />
+          </Card>
+        </Col>
+        
+        <Col xs={24} sm={8}>
+          <Card 
+            hoverable
+            style={{ borderLeft: '4px solid #52C41A' }}
+          >
+            <Statistic
+              title="Sản Phẩm Shop"
+              value={shopItems.length}
+              prefix={<ShoppingBag size={24} style={{ color: '#52C41A' }} />}
+              valueStyle={{ color: '#52C41A' }}
+            />
+          </Card>
+        </Col>
+        
+        <Col xs={24} sm={8}>
+          <Card 
+            hoverable
+            style={{ borderLeft: '4px solid #1890FF' }}
+          >
+            <Statistic
+              title="Doanh Thu Tháng"
+              value={15250000}
+              prefix={<DollarSign size={24} style={{ color: '#1890FF' }} />}
+              suffix="₫"
+              valueStyle={{ color: '#1890FF', fontSize: '1.5rem' }}
+            />
+          </Card>
+        </Col>
+      </Row>
 
-      {activeTab === 'supplies' ? (
-        <div className="card">
-           <div className="flex justify-between items-center mb-4">
-              <h3>Internal Supplies</h3>
-              <button className="btn btn-outline"><Plus size={16} /> Request Restock</button>
-           </div>
-           <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-              <thead>
-                 <tr style={{ borderBottom: '2px solid #f3f4f6' }}>
-                    <th className="p-3">Item Name</th>
-                    <th className="p-3">Quantity</th>
-                    <th className="p-3">Min Required</th>
-                    <th className="p-3">Status</th>
-                 </tr>
-              </thead>
-              <tbody>
-                 {supplies.map(item => (
-                   <tr key={item.id} style={{ borderBottom: '1px solid #f9fafb' }}>
-                      <td className="p-3" style={{ fontWeight: 500 }}>{item.name}</td>
-                      <td className="p-3">{item.quantity}</td>
-                      <td className="p-3" style={{ color: '#6b7280' }}>{item.minReq}</td>
-                      <td className="p-3">
-                         <span className={`badge ${item.status === 'Good' ? 'badge-success' : item.status === 'Low' ? 'badge-warning' : 'badge-danger'}`}>
-                           {item.status}
-                         </span>
-                      </td>
-                   </tr>
-                 ))}
-              </tbody>
-           </table>
-        </div>
-      ) : (
-        <div className="card">
-           <div className="flex justify-between items-center mb-4">
-              <h3>Shop Products (Fundraising)</h3>
-              <button className="btn btn-primary"><Plus size={16} /> Add Product</button>
-           </div>
-           <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
-              {shopItems.map(item => (
-                <div key={item.id} style={{ border: '1px solid #e5e7eb', borderRadius: '0.5rem', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                   <div style={{ height: '8rem', backgroundColor: '#f3f4f6', borderRadius: '0.375rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
-                      <ShoppingBag size={32} />
-                   </div>
-                   <h4 style={{ fontWeight: 'bold' }}>{item.name}</h4>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: '#2563eb', fontWeight: 'bold' }}>{item.price}</span>
-                      <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>{item.stock} left</span>
-                   </div>
-                </div>
-              ))}
-           </div>
-        </div>
-      )}
+      {/* Tabs for Supplies and Shop */}
+      <Card style={{ borderRadius: 8 }}>
+        <Tabs
+          defaultActiveKey="supplies"
+          size="large"
+          tabBarExtraContent={
+            <Button type="primary" icon={<Plus size={16} />}>
+              Thêm Mới
+            </Button>
+          }
+        >
+          <TabPane 
+            tab={
+              <span>
+                <Package size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                Vật Phẩm Nội Bộ
+              </span>
+            } 
+            key="supplies"
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {/* Critical Items Alert */}
+              {supplies.some(item => item.status === 'Critical') && (
+                <Card 
+                  size="small"
+                  style={{ 
+                    background: '#FFF1F0', 
+                    border: '1px solid #FFCCC7' 
+                  }}
+                >
+                  <Space>
+                    <AlertCircle size={20} color="#F5222D" />
+                    <span style={{ fontWeight: 500 }}>
+                      Cảnh báo: {supplies.filter(s => s.status === 'Critical').length} vật phẩm ở mức rất thấp!
+                    </span>
+                  </Space>
+                </Card>
+              )}
+
+              <Table 
+                columns={suppliesColumns} 
+                dataSource={supplies}
+                rowKey="id"
+                pagination={{ pageSize: 10 }}
+              />
+            </Space>
+          </TabPane>
+          
+          <TabPane 
+            tab={
+              <span>
+                <ShoppingBag size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                Sản Phẩm Gây Quỹ
+              </span>
+            } 
+            key="shop"
+          >
+            <Table 
+              columns={shopColumns} 
+              dataSource={shopItems}
+              rowKey="id"
+              pagination={{ pageSize: 10 }}
+            />
+          </TabPane>
+        </Tabs>
+      </Card>
     </div>
   );
 };

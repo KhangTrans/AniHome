@@ -7,6 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import AdoptionFormModal from '../../components/AdoptionFormModal';
 import { getPets } from '../../services/public/petsService';
+import { getShelters } from '../../services/public/sheltersService';
+import { createVNPayDonation, getCurrentUserId, redirectToVNPay, DONATION_PRESETS, formatAmountDisplay } from '../../services/public/donationService';
 import Navbar from '../../components/Navbar';
 
 const UserLandingPage = () => {
@@ -20,32 +22,66 @@ const UserLandingPage = () => {
   const [formData, setFormData] = useState({ name: '', email: '', message: '' });
   const [categoryFilter, setCategoryFilter] = useState('All');
   
+  // Donation States
+  const [donationAmount, setDonationAmount] = useState(50000);
+  const [donationMessage, setDonationMessage] = useState('');
+  const [isDonating, setIsDonating] = useState(false);
+  
   // API States
   const [animals, setAnimals] = useState([]);
-  // const [loading, setLoading] = useState(true);
-  // const [error, setError] = useState(null);
+  const [partners, setPartners] = useState([]);
+  const [_loading, setLoading] = useState(true);
+  const [_error, setError] = useState(null);
   
   const carouselRef = useRef(null);
 
-  // Fetch pets from API
+  // Fetch pets and shelters from API
   useEffect(() => {
-    const fetchPets = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
 
+      // Fetch pets
       const result = await getPets({ page: 1, pageSize: 50 });
 
       if (result.success) {
-        setAnimals(result.data.items || []);
+        // Map backend data structure to frontend format
+        const mappedAnimals = (result.data.items || []).map(pet => ({
+          id: pet.petID,
+          name: pet.petName,
+          breed: pet.breed,
+          status: pet.status,
+          image: pet.imageURL,
+          type: pet.categoryName,
+          description: pet.description || `${pet.petName} là một ${pet.breed} đang tìm mái ấm mới.`,
+          // Keep original fields for API calls
+          petID: pet.petID,
+          petName: pet.petName,
+        }));
+        setAnimals(mappedAnimals);
       } else {
         setError(result.error);
         toast.error('Failed to load pets: ' + result.error);
       }
 
+      // Fetch partner shelters (limit 5 for carousel)
+      const sheltersResult = await getShelters({ page: 1, pageSize: 5 });
+      if (sheltersResult.success) {
+        const mappedShelters = (sheltersResult.data.items || []).map(shelter => ({
+          id: shelter.shelterID,
+          name: shelter.shelterName,
+          location: shelter.location,
+          region: shelter.regionName,
+          animalCount: shelter.totalPets || 0,
+          img: 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80', // Default image
+        }));
+        setPartners(mappedShelters);
+      }
+
       setLoading(false);
     };
 
-    fetchPets();
+    fetchData();
   }, [toast]);
 
   useEffect(() => {
@@ -71,7 +107,9 @@ const UserLandingPage = () => {
   ];
 
   const filteredAnimals = animals.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchTerm.toLowerCase()) || a.breed.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!a) return false;
+    const matchesSearch = (a.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                          (a.breed?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesCategory = categoryFilter === 'All' || a.type === categoryFilter;
     return matchesSearch && matchesCategory;
   });
@@ -85,6 +123,9 @@ const UserLandingPage = () => {
          }
          setActiveModal('adoptForm');
       } else if (type === 'donate') {
+         // Reset donation form
+         setDonationAmount(50000);
+         setDonationMessage('');
          setActiveModal('donate');
       }
       
@@ -93,9 +134,51 @@ const UserLandingPage = () => {
       }
   };
 
-  const handleDonate = (e) => {
+  const handleDonate = async (e) => {
       e.preventDefault();
-      setActiveModal('success_donate');
+      
+      // Get pet ID (đã map sẵn từ backend)
+      const petID = selectedAnimal?.petID || selectedAnimal?.id;
+      const petName = selectedAnimal?.petName || selectedAnimal?.name || 'pet này';
+      
+      if (!petID) {
+        toast.error('Không tìm thấy thông tin pet. Vui lòng thử lại.');
+        return;
+      }
+      
+      // Validation
+      if (!donationAmount || donationAmount < 1000) {
+        toast.error('Số tiền tối thiểu là 1,000đ');
+        return;
+      }
+      
+      if (donationAmount % 1000 !== 0) {
+        toast.error('Số tiền phải là bội số của 1,000đ');
+        return;
+      }
+      
+      setIsDonating(true);
+      
+      try {
+        const result = await createVNPayDonation({
+          petID: petID,
+          userID: getCurrentUserId(),
+          amount: donationAmount,
+          message: donationMessage || `Ủng hộ cho ${petName}`,
+        });
+        
+        if (result.success) {
+          // Close modal và redirect sang VNPay
+          setActiveModal(null);
+          redirectToVNPay(result.data.paymentUrl);
+        } else {
+          toast.error(result.error || 'Không thể tạo thanh toán. Vui lòng thử lại.');
+        }
+      } catch {
+        toast.error('Đã xảy ra lỗi. Vui lòng thử lại.');
+      } finally {
+        setIsDonating(false);
+      }
   }
 
   return (
@@ -284,14 +367,8 @@ const UserLandingPage = () => {
             </div>
             
             <div ref={carouselRef} style={{ display: 'flex', gap: '1.5rem', overflowX: 'auto', padding: '1rem 0 2rem', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', maxWidth: '1200px', margin: '0 auto' }} className="hide-scrollbar">
-                {[
-                    { name: 'Happy Paws Rescue', img: 'https://images.unsplash.com/photo-1601758177266-bc599de8770c?auto=format&fit=crop&w=600&q=80' },
-                    { name: 'Saigon Animal Shelter', img: 'https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80' },
-                    { name: 'Danang Pet Care', img: 'https://images.unsplash.com/photo-1599182186790-264663bb53e1?auto=format&fit=crop&w=600&q=80' },
-                    { name: 'Mountain Rescue', img: 'https://images.unsplash.com/photo-1533738363-b7f9aef128ce?auto=format&fit=crop&w=600&q=80' },
-                    { name: 'Hanoi Love Pets', img: 'https://images.unsplash.com/photo-1548681528-6a5c45b63b80?auto=format&fit=crop&w=600&q=80' }
-                ].map((shelter, i) => (
-                    <div key={i} className="hover-lift" style={{ 
+                {partners.length > 0 ? partners.map((shelter) => (
+                    <Link key={shelter.id} to={`/shelters/${shelter.id}`} className="hover-lift" style={{ 
                         flex: '0 0 auto',
                         width: '265px', 
                         height: '400px', 
@@ -300,7 +377,8 @@ const UserLandingPage = () => {
                         position: 'relative', 
                         scrollSnapAlign: 'center',
                         boxShadow: '0 10px 20px rgba(0,0,0,0.05)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        textDecoration: 'none'
                     }}>
                         <img src={shelter.img} alt={shelter.name} className="card-img-zoom" />
                         <div style={{ 
@@ -316,13 +394,20 @@ const UserLandingPage = () => {
                         }}>
                             <div>
                                 <h4 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '0.25rem', textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>{shelter.name}</h4>
-                                <span style={{ fontSize: '0.9rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    <MapPin size={14} /> Xem chi tiết
+                                <span style={{ fontSize: '0.85rem', opacity: 0.9, display: 'flex', alignItems: 'center', gap: '0.25rem', marginBottom: '0.25rem' }}>
+                                    <MapPin size={14} /> {shelter.location}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+                                    {shelter.animalCount} bé đang chờ
                                 </span>
                             </div>
                         </div>
+                    </Link>
+                )) : (
+                    <div style={{ width: '100%', textAlign: 'center', padding: '3rem', color: '#999' }}>
+                        Đang tải thông tin đối tác...
                     </div>
-                ))}
+                )}
             </div>
         </section>
 
@@ -378,37 +463,95 @@ const UserLandingPage = () => {
         />
       )}
 
-      <Modal isOpen={activeModal === 'donate'} onClose={() => setActiveModal(null)} title={`Quyên góp cho ${selectedAnimal?.name}`}>
+      <Modal isOpen={activeModal === 'donate'} onClose={() => setActiveModal(null)} title={`Quyên góp cho ${selectedAnimal?.name || 'pet'}`}>
          <form onSubmit={handleDonate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
              <div style={{ padding: '1rem', background: '#eff6ff', color: '#1e40af', borderRadius: '0.5rem', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
-                Đóng góp của bạn giúp cung cấp thức ăn và y tế cho <strong>{selectedAnimal?.name}</strong>.
+                Đóng góp của bạn giúp cung cấp thức ăn và y tế cho <strong>{selectedAnimal?.name || 'pet này'}</strong>.
              </div>
              
              <label style={{ fontWeight: 'bold', fontSize: '0.875rem', color: '#4b5563' }}>Chọn Số Tiền</label>
-             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                 {['50k', '100k', '200k', '500k'].map(amt => (
-                     <button type="button" key={amt} className="btn-outline" style={{ flex: 1, padding: '0.5rem 0', borderRadius: '0.5rem', borderColor: '#e5e7eb', color: 'var(--dark)' }}>{amt}</button>
+             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                 {DONATION_PRESETS.map(preset => (
+                     <button 
+                       type="button" 
+                       key={preset.value} 
+                       onClick={() => setDonationAmount(preset.value)}
+                       className="btn-outline" 
+                       style={{ 
+                         flex: '1 1 45%', 
+                         padding: '0.5rem', 
+                         borderRadius: '0.5rem', 
+                         border: donationAmount === preset.value ? '2px solid var(--primary)' : '1px solid #e5e7eb',
+                         background: donationAmount === preset.value ? '#eff6ff' : 'white',
+                         color: donationAmount === preset.value ? 'var(--primary)' : 'var(--dark)',
+                         fontWeight: donationAmount === preset.value ? '600' : '400'
+                       }}
+                     >
+                       {preset.label}
+                     </button>
                  ))}
              </div>
              
-             <input type="text" placeholder="Số tiền khác" style={{ padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem', width: '100%' }} />
-             
-             <div style={{ position: 'relative' }}>
-                 <CreditCard size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
-                 <input type="text" placeholder="Số thẻ ngân hàng" style={{ width: '100%', padding: '0.75rem 0.75rem 0.75rem 2.5rem', border: '1px solid #e5e7eb', borderRadius: '0.5rem' }} />
+             <div>
+               <label style={{ fontSize: '0.875rem', color: '#4b5563', marginBottom: '0.5rem', display: 'block' }}>Hoặc nhập số tiền khác (VNĐ)</label>
+               <input 
+                 type="number" 
+                 placeholder="Nhập số tiền (tối thiểu 1,000đ)" 
+                 value={donationAmount || ''}
+                 onChange={(e) => setDonationAmount(parseInt(e.target.value) || 0)}
+                 min="1000"
+                 step="1000"
+                 style={{ 
+                   padding: '0.75rem', 
+                   border: '1px solid #e5e7eb', 
+                   borderRadius: '0.5rem', 
+                   width: '100%',
+                   fontSize: '1rem'
+                 }} 
+               />
+               <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                 Số tiền hiện tại: <strong style={{ color: 'var(--primary)' }}>{formatAmountDisplay(donationAmount)}</strong>
+               </div>
              </div>
              
-             <button className="btn btn-success" style={{ backgroundColor: 'var(--success)', color: 'white', justifyContent: 'center', marginTop: '0.5rem' }}>Quyên Góp Ngay</button>
+             <div>
+               <label style={{ fontSize: '0.875rem', color: '#4b5563', marginBottom: '0.5rem', display: 'block' }}>Lời nhắn (không bắt buộc)</label>
+               <textarea
+                 placeholder="Gửi lời động viên..."
+                 value={donationMessage}
+                 onChange={(e) => setDonationMessage(e.target.value)}
+                 rows={3}
+                 style={{ 
+                   padding: '0.75rem', 
+                   border: '1px solid #e5e7eb', 
+                   borderRadius: '0.5rem', 
+                   width: '100%',
+                   fontSize: '0.875rem',
+                   resize: 'vertical'
+                 }}
+               />
+             </div>
+             
+             <button 
+               type="submit"
+               disabled={isDonating || !donationAmount || donationAmount < 1000}
+               className="btn btn-success" 
+               style={{ 
+                 backgroundColor: 'var(--success)', 
+                 color: 'white', 
+                 justifyContent: 'center', 
+                 marginTop: '0.5rem',
+                 opacity: (isDonating || !donationAmount || donationAmount < 1000) ? 0.6 : 1,
+                 cursor: (isDonating || !donationAmount || donationAmount < 1000) ? 'not-allowed' : 'pointer'
+               }}
+             >
+               {isDonating ? 'Đang xử lý...' : 'Quyên Góp Ngay'}
+             </button>
+             
+             <div style={{ fontSize: '0.75rem', color: '#6b7280', textAlign: 'center', marginTop: '0.5rem' }}>
+               🔒 Thanh toán an toàn qua VNPay
+             </div>
          </form>
-      </Modal>
-
-      <Modal isOpen={activeModal === 'success_donate'} onClose={() => setActiveModal(null)} title="Quyên Góp Thành Công!">
-         <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-             <CheckCircle size={64} color="var(--success)" style={{ margin: '0 auto 1rem' }} />
-             <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Cảm Ơn Tấm Lòng Của Bạn!</h3>
-             <p style={{ color: '#4b5563', marginBottom: '1.5rem' }}>Chúng tôi đã nhận được quyên góp của bạn.</p>
-             <button onClick={() => setActiveModal(null)} className="btn btn-primary">Đóng</button>
-         </div>
       </Modal>
 
     </div>

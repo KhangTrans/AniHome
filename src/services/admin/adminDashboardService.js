@@ -13,7 +13,7 @@ import axiosInstance from '../axiosConfig';
  */
 export const getAdminDashboard = async () => {
   try {
-    const response = await axiosInstance.get('/admin/dashboard');
+    const response = await axiosInstance.get('/Admin/dashboard');
     
     return {
       success: true,

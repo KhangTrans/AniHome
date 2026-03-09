@@ -375,3 +375,58 @@ h1, h2, h3, h4, h5, h6 {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Ant Design Customization */
+/* Override antd Menu styles for admin sidebar */
+.ant-menu-light .ant-menu-item-selected {
+  background-color: #FFF0F0;
+  color: var(--primary);
+}
+
+.ant-menu-light .ant-menu-item:hover {
+  color: var(--primary);
+}
+
+.ant-menu-light .ant-menu-item-selected::after {
+  border-right-color: var(--primary);
+}
+
+/* Antd Button hover states for danger */
+.ant-btn-text.ant-btn-dangerous:hover {
+  background-color: #fef2f2;
+}
+
+/* Antd Layout overrides */
+.ant-layout {
+  background: var(--light);
+}
+
+.ant-layout-sider {
+  background: white !important;
+}
+
+/* Antd Sider transitions */
+.ant-layout-sider,
+.ant-layout-sider-children {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* Menu collapsed tooltip */
+.ant-tooltip {
+  z-index: 1060;
+}
+
+/* Smooth width transition for content */
+.ant-layout {
+  transition: margin-left 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Menu inline collapsed styles */
+.ant-menu-inline-collapsed {
+  width: 80px;
+}
+
+.ant-menu-inline-collapsed > .ant-menu-item,
+.ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding: 0 calc(50% - 18px / 2) !important;
+}

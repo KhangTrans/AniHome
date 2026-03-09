@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
+import { Layout } from 'antd';
 import Sidebar from '../../components/Sidebar';
-import AdminOverview from './AdminOverview';
-import ShelterManager from './ShelterManager';
-import ContentModerator from './ContentModerator';
-import ReportManager from './ReportManager';
-import CategoryEditor from './CategoryEditor';
+import './AdminLayout.css';
+import AdminOverview from './dashboard';
+import ShelterManager from './shelters';
+import ContentModerator from './moderation/ContentModerator';
+import ReportManager from './moderation/ReportManager';
+import CategoryEditor from './categories';
 import { 
   LayoutDashboard, 
   Home, 
@@ -15,8 +17,23 @@ import {
   Menu
 } from 'lucide-react';
 
+const { Sider, Content } = Layout;
+
 const SuperAdminDashboard = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setCollapsed(mobile); // Auto collapse on mobile
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const sidebarItems = [
     { label: 'Tổng Quan', path: '/admin', icon: <LayoutDashboard size={20} />, exact: true },
@@ -27,34 +44,79 @@ const SuperAdminDashboard = () => {
   ];
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--light)', position: 'relative' }}>
+    <Layout style={{ minHeight: '100vh' }}>
+      {/* Mobile Overlay */}
+      {isMobile && !collapsed && (
+        <div 
+          onClick={() => setCollapsed(true)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.45)',
+            zIndex: 900,
+          }}
+        />
+      )}
+
       {/* Mobile Header */}
-      <div className="md:hidden p-4 bg-white flex items-center justify-between shadow-sm fixed top-0 left-0 right-0 z-20">
-         <div className="flex items-center gap-2">
-            <button onClick={() => setSidebarOpen(true)}>
+      <div className="admin-mobile-header">
+         <div className="admin-mobile-header-content">
+            <button className="admin-mobile-menu-btn" onClick={() => setCollapsed(!collapsed)}>
                <Menu size={24} />
             </button>
-            <h1 className="font-bold text-lg">Quản Trị Viên</h1>
+            <h1 className="admin-mobile-title">Quản Trị Viên</h1>
          </div>
       </div>
 
-      <Sidebar 
-        title="Quản Trị Viên" 
-        items={sidebarItems} 
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-      />
+      <Sider 
+        width={260}
+        collapsedWidth={isMobile ? 0 : 80}
+        breakpoint="md"
+        collapsed={collapsed}
+        onCollapse={(collapsed) => setCollapsed(collapsed)}
+        collapsible
+        trigger={null}
+        style={{
+          background: 'white',
+          borderRight: '1px solid #e5e7eb',
+          position: isMobile ? 'fixed' : 'relative',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: isMobile ? 999 : 50,
+          overflow: 'auto',
+          height: '100vh',
+        }}
+        className="admin-sider"
+      >
+        <Sidebar 
+          title="Quản Trị Viên" 
+          items={sidebarItems} 
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+          onClose={() => setCollapsed(true)}
+        />
+      </Sider>
       
-      <main className="md:ml-[var(--sidebar-width)] pt-16 md:pt-0">
-        <Routes>
-            <Route path="/" element={<AdminOverview />} />
-            <Route path="/shelters" element={<ShelterManager />} />
-            <Route path="/content" element={<ContentModerator />} />
-            <Route path="/reports" element={<ReportManager />} />
-            <Route path="/categories" element={<CategoryEditor />} />
-        </Routes>
-      </main>
-    </div>
+      <Layout style={{ 
+        transition: 'margin-left 0.2s',
+        minHeight: '100vh'
+      }}>
+        <Content style={{ 
+          background: 'var(--light)', 
+          padding: isMobile ? '1rem' : '1.5rem 2rem',
+          paddingTop: isMobile ? '5rem' : '1.5rem'
+        }}>
+          <Routes>
+              <Route path="/" element={<AdminOverview />} />
+              <Route path="/shelters" element={<ShelterManager />} />
+              <Route path="/content" element={<ContentModerator />} />
+              <Route path="/reports" element={<ReportManager />} />
+              <Route path="/categories" element={<CategoryEditor />} />
+          </Routes>
+        </Content>
+      </Layout>
+    </Layout>
   );
 };
 

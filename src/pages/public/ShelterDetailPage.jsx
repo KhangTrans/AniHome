@@ -39,12 +39,43 @@ const ShelterDetailPage = () => {
                 setLoading(false);
                 return;
             }
-            setShelter(shelterResult.data);
+            
+            // Map backend structure to frontend structure
+            const backendShelter = shelterResult.data;
+            const mappedShelter = {
+                id: backendShelter.shelterID,
+                name: backendShelter.shelterName,
+                address: backendShelter.location,
+                region: backendShelter.regionName,
+                animalCount: backendShelter.totalPets || 0,
+                description: backendShelter.description || `Trạm cứu hộ ${backendShelter.shelterName} tại ${backendShelter.location}`,
+                createdAt: backendShelter.createdAt,
+                // Defaults for missing fields
+                image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=1200&q=80',
+                phone: null,
+                email: null,
+            };
+            setShelter(mappedShelter);
 
             // Fetch all animals and filter by shelterId
             const petsResult = await getPets({ page: 1, pageSize: 100 });
             if (petsResult.success) {
-                const shelterAnimals = (petsResult.data.items || []).filter(
+                // Map pet data from backend format
+                const mappedPets = (petsResult.data.items || []).map(pet => ({
+                    id: pet.petID,
+                    name: pet.petName,
+                    species: pet.speciesName,
+                    breed: pet.breedName,
+                    age: pet.age,
+                    gender: pet.gender,
+                    healthStatus: pet.healthStatus,
+                    description: pet.description,
+                    image: pet.image,
+                    shelterId: pet.shelterID,
+                    status: pet.status,
+                }));
+                
+                const shelterAnimals = mappedPets.filter(
                     animal => animal.shelterId === parseInt(id)
                 );
                 setAnimals(shelterAnimals);

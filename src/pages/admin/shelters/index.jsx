@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Trash2, CheckCircle, Ban, RefreshCw, Search, Filter } from 'lucide-react';
 import { Modal } from 'antd';
-import { getAllShelters, updateShelterStatus, deleteShelter, getAdminShelterStatusBadge } from '../../services/admin/adminSheltersService';
-import { useToast } from '../../context/ToastContext';
+import { getAllShelters, updateShelterStatus, deleteShelter, getAdminShelterStatusBadge } from '../../../services/admin/adminSheltersService';
+import { useToast } from '../../../context/ToastContext';
 
 const ShelterManager = () => {
   const toast = useToast();

@@ -13,6 +13,8 @@ import axiosInstance from '../axiosConfig';
  * 
  * @param {number} shelterId - Shelter ID
  * @param {Object} params - Query params
+ * @param {string} params.keyword - Search by pet name (optional)
+ * @param {number} params.categoryId - Filter by category (optional)
  * @param {string} params.status - Filter by status (optional)
  * @param {number} params.page - Page number (default: 1)
  * @param {number} params.pageSize - Page size (default: 10)
@@ -22,6 +24,8 @@ export const getShelterPets = async (shelterId, params = {}) => {
     const queryParams = {
       page: params.page || 1,
       pageSize: params.pageSize || 10,
+      ...(params.keyword && { keyword: params.keyword }),
+      ...(params.categoryId && { categoryId: params.categoryId }),
       ...(params.status && { status: params.status }),
     };
 
@@ -46,38 +50,39 @@ export const getShelterPets = async (shelterId, params = {}) => {
  * 
  * @param {number} shelterId - Shelter ID
  * @param {Object} petData - Pet information
- * @param {string} petData.name - Tên thú cưng
- * @param {number} petData.categoryId - ID loại thú cưng
+ * @param {string} petData.petName - Tên thú cưng
+ * @param {number} petData.categoryID - ID loại thú cưng
  * @param {string} petData.breed - Giống
- * @param {number} petData.age - Tuổi (tháng)
+ * @param {number} petData.age - Tuổi
  * @param {string} petData.gender - Giới tính (Male/Female)
  * @param {string} petData.color - Màu sắc
  * @param {number} petData.weight - Cân nặng (kg)
  * @param {string} petData.healthStatus - Tình trạng sức khỏe
+ * @param {string} petData.vaccinationStatus - Tình trạng tiêm chủng
  * @param {string} petData.description - Mô tả
- * @param {string} petData.image - URL hình ảnh
- * @param {string} petData.status - Trạng thái (Available/Pending/Adopted)
+ * @param {string} petData.imageURL - URL hình ảnh
  */
 export const addShelterPet = async (shelterId, petData) => {
   try {
     const response = await axiosInstance.post(`/manage-shelter/${shelterId}/pets`, {
-      name: petData.name,
-      categoryId: petData.categoryId,
+      petName: petData.petName,
+      categoryID: petData.categoryID,
       breed: petData.breed,
       age: petData.age,
       gender: petData.gender,
       color: petData.color,
       weight: petData.weight,
       healthStatus: petData.healthStatus,
+      vaccinationStatus: petData.vaccinationStatus,
       description: petData.description,
-      image: petData.image,
+      imageURL: petData.imageURL,
       status: petData.status || 'Available',
     });
     
     return {
       success: true,
       data: response.data,
-      message: 'Thêm thú cưng thành công!',
+      message: 'Thêm hồ sơ thú cưng thành công.',
     };
   } catch (error) {
     return {
@@ -93,19 +98,19 @@ export const addShelterPet = async (shelterId, petData) => {
  * 
  * @param {number} shelterId - Shelter ID
  * @param {number} petId - Pet ID
- * @param {string} status - New status (Available/Pending/Adopted)
+ * @param {string} newStatus - New status (Available/Adopted/InTreatment/Reserved/Deceased)
  */
-export const updatePetStatus = async (shelterId, petId, status) => {
+export const updatePetStatus = async (shelterId, petId, newStatus) => {
   try {
     const response = await axiosInstance.patch(
       `/manage-shelter/${shelterId}/pets/${petId}/status`,
-      { status }
+      { newStatus }
     );
     
     return {
       success: true,
       data: response.data,
-      message: 'Cập nhật trạng thái thành công!',
+      message: 'Cập nhật trạng thái thành công.',
     };
   } catch (error) {
     return {
@@ -121,8 +126,8 @@ export const updatePetStatus = async (shelterId, petId, status) => {
 export const validatePetData = (data) => {
   const errors = {};
   
-  if (!data.name) errors.name = 'Vui lòng nhập tên thú cưng';
-  if (!data.categoryId) errors.categoryId = 'Vui lòng chọn loại thú cưng';
+  if (!data.petName) errors.petName = 'Vui lòng nhập tên thú cưng';
+  if (!data.categoryID) errors.categoryID = 'Vui lòng chọn loại thú cưng';
   if (!data.breed) errors.breed = 'Vui lòng nhập giống';
   if (!data.age) errors.age = 'Vui lòng nhập tuổi';
   if (!data.gender) errors.gender = 'Vui lòng chọn giới tính';
@@ -143,18 +148,20 @@ export const validatePetData = (data) => {
 };
 
 /**
+ * Utility: Pet status options
+ */
+export const PET_STATUS_OPTIONS = [
+  { value: 'Available', label: 'Sẵn Sàng Nhận Nuôi', color: 'success' },
+  { value: 'InTreatment', label: 'Đang Điều Trị', color: 'warning' },
+  { value: 'Reserved', label: 'Đã Đặt Trước', color: 'processing' },
+  { value: 'Adopted', label: 'Đã Được Nhận Nuôi', color: 'default' },
+  { value: 'Deceased', label: 'Đã Mất', color: 'error' },
+];
+
+/**
  * Utility: Get pet gender options
  */
 export const PET_GENDER_OPTIONS = [
   { value: 'Male', label: 'Đực', icon: '♂️' },
   { value: 'Female', label: 'Cái', icon: '♀️' },
-];
-
-/**
- * Utility: Get pet status options
- */
-export const PET_STATUS_OPTIONS = [
-  { value: 'Available', label: 'Sẵn sàng', color: '#10b981' },
-  { value: 'Pending', label: 'Đang duyệt', color: '#f59e0b' },
-  { value: 'Adopted', label: 'Đã nhận nuôi', color: '#6b7280' },
 ];

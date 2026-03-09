@@ -73,7 +73,7 @@ const LoginPage = () => {
         setError(result.message || 'Google login failed');
         toast.error(result.message || 'Google login failed');
       }
-    } catch (err) {
+    } catch {
       const errorMsg = 'Google login failed. Please try again.';
       setError(errorMsg);
       toast.error(errorMsg);
@@ -209,7 +209,6 @@ const LoginPage = () => {
               onError={handleGoogleLoginError}
               theme="outline"
               size="large"
-              width="100%"
               text="continue_with"
               shape="rectangular"
             />

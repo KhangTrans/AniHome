@@ -11,79 +11,148 @@ import axiosInstance from '../axiosConfig';
  */
 export const register = async (userData) => {
   try {
-    const response = await axiosInstance.post('/auth/register', {
+    const payload = {
       username: userData.username,
       email: userData.email,
       password: userData.password,
       confirmNewPassword: userData.confirmNewPassword,
       fullName: userData.fullName,
-    });
+    };
     
-    // Lưu token và user info
-    const { accessToken, refreshToken, user } = response.data;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
+    const response = await axiosInstance.post('/Auth/register', payload);
+    
+    // Backend trả về format: { message: "Đăng ký tài khoản thành công!" }
+    // Không có token và user info ngay lập tức
+    // User cần login sau khi đăng ký
     
     return {
       success: true,
       data: response.data,
+      message: response.data.message || 'Registration successful',
+      needLogin: true, // Flag để frontend biết cần redirect đến login
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Registration failed',
+      error: error.response?.data?.message || error.response?.data?.title || 'Registration failed',
+      details: error.response?.data?.errors || error.response?.data,
     };
   }
 };
 
 /**
- * POST /api/auth/login
+ * POST /api/Auth/login
  * Đăng nhập
  */
 export const login = async (usernameOrEmail, password) => {
   try {
-    const response = await axiosInstance.post('/auth/login', {
+    const payload = {
       usernameOrEmail,
       password,
-    });
+    };
     
-    // Lưu token và user info
-    const { accessToken, refreshToken, user } = response.data;
+    const response = await axiosInstance.post('/Auth/login', payload);
+    
+    // Backend trả về: { accessToken, refreshToken, fullName, avatarURL }
+    const { accessToken, refreshToken, fullName, avatarURL } = response.data;
+    
+    // Decode JWT để lấy thông tin user (bao gồm roleID)
+    let roleID = 4; // Default: User thường
+    let userId = null;
+    
+    try {
+      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+      
+      // Backend có thể lưu role/roleId/RoleId trong token
+      roleID = tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || 4;
+      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || null;
+    } catch {
+      // Use default roleID = 4 if token decode fails
+    }
+
+    // Extract shelterID from token if available
+    let shelterID = null;
+    try {
+      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+      shelterID = tokenPayload.shelterID || tokenPayload.shelterId || tokenPayload.ShelterId || null;
+    } catch {
+      // shelterID not available in token
+    }
+    
+    // Tạo user object từ response
+    const user = {
+      userId,
+      fullName,
+      avatarURL,
+      usernameOrEmail,
+      roleID,
+      shelterID,
+    };
+    
+    // Lưu vào localStorage
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
     
     return {
       success: true,
-      data: response.data,
+      data: {
+        accessToken,
+        refreshToken,
+        user,
+      },
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Login failed',
+      error: error.response?.data?.message || 'Sai tài khoản hoặc mật khẩu',
     };
   }
 };
 
 /**
- * POST /api/auth/google
+ * POST /api/Auth/google
  * Đăng nhập bằng Google (Requires Google OAuth Setup)
  */
 export const loginWithGoogle = async (googleToken) => {
   try {
-    const response = await axiosInstance.post('/auth/google', {
+    const response = await axiosInstance.post('/Auth/google', {
       token: googleToken,
     });
     
-    const { accessToken, refreshToken, user } = response.data;
+    // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL }
+    const { accessToken, refreshToken, fullName, avatarURL } = response.data;
+    
+    // Decode JWT để lấy thông tin user
+    let roleID = 4;
+    let userId = null;
+    
+    try {
+      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
+      roleID = tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || 4;
+      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || null;
+    } catch {
+      // Use default roleID = 4 if token decode fails
+    }
+    
+    const user = {
+      userId,
+      fullName,
+      avatarURL,
+      roleID,
+    };
+    
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
     
     return {
       success: true,
-      data: response.data,
+      data: {
+        accessToken,
+        refreshToken,
+        user,
+      },
     };
   } catch (error) {
     return {
@@ -99,7 +168,7 @@ export const loginWithGoogle = async (googleToken) => {
  */
 export const forgotPassword = async (email) => {
   try {
-    const response = await axiosInstance.post('/auth/forgot-password', {
+    const response = await axiosInstance.post('/Auth/forgot-password', {
       email,
     });
     
@@ -121,7 +190,7 @@ export const forgotPassword = async (email) => {
  */
 export const resetPassword = async (resetData) => {
   try {
-    const response = await axiosInstance.post('/auth/reset-password', {
+    const response = await axiosInstance.post('/Auth/reset-password', {
       email: resetData.email,
       token: resetData.token,
       newPassword: resetData.newPassword,
@@ -147,7 +216,7 @@ export const getCurrentUser = () => {
   try {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };

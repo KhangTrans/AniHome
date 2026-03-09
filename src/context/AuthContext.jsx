@@ -4,12 +4,32 @@ import * as userService from '../services/user/userService';
 
 const AuthContext = createContext(null);
 
+// Helper: Map roleID to role string
+const mapRoleIDToRole = (roleID) => {
+  const roleMap = {
+    1: 'super_admin',
+    2: 'shelter_admin',
+    3: 'volunteer',
+    4: 'user'
+  };
+  return roleMap[roleID] || 'user';
+};
+
+// Helper: Enhance user with role string
+const enhanceUser = (user) => {
+  if (!user) return null;
+  return {
+    ...user,
+    role: mapRoleIDToRole(user.roleID)
+  };
+};
+
 export const AuthProvider = ({ children }) => {
   // Initialize user from localStorage on mount
   const [user, setUser] = useState(() => {
     const storedUser = publicAuthService.getCurrentUser();
     const isAuth = publicAuthService.isAuthenticated();
-    return (isAuth && storedUser) ? storedUser : null;
+    return (isAuth && storedUser) ? enhanceUser(storedUser) : null;
   });
   const loading = false;
 
@@ -23,11 +43,12 @@ export const AuthProvider = ({ children }) => {
       const result = await publicAuthService.login(usernameOrEmail, password);
       
       if (result.success) {
-        setUser(result.data.user);
+        const enhancedUser = enhanceUser(result.data.user);
+        setUser(enhancedUser);
         return { 
           success: true, 
           role: result.data.user.roleID,
-          user: result.data.user 
+          user: enhancedUser 
         };
       }
       
@@ -52,10 +73,12 @@ export const AuthProvider = ({ children }) => {
       const result = await publicAuthService.register(userData);
       
       if (result.success) {
-        setUser(result.data.user);
+        // Backend không trả về token/user info sau khi register
+        // User cần login sau khi đăng ký thành công
         return { 
           success: true,
-          user: result.data.user 
+          message: result.message || 'Registration successful. Please login.',
+          needLogin: true,
         };
       }
       
@@ -80,11 +103,12 @@ export const AuthProvider = ({ children }) => {
       const result = await publicAuthService.loginWithGoogle(idToken);
       
       if (result.success) {
-        setUser(result.data.user);
+        const enhancedUser = enhanceUser(result.data.user);
+        setUser(enhancedUser);
         return { 
           success: true, 
           role: result.data.user.roleID,
-          user: result.data.user 
+          user: enhancedUser 
         };
       }
       

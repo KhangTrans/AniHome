@@ -2,29 +2,66 @@ import React, { useState, useEffect } from 'react';
 import { MapPin, Search, Filter, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
+import Pagination from '../../components/Pagination';
 import { getShelters } from '../../services/public/sheltersService';
 import { useToast } from '../../context/ToastContext';
+
+// Region ID mapping cho backend
+const REGION_MAP = {
+  'All': null,
+  'Miền Bắc': 1,
+  'Miền Trung': 2,
+  'Miền Nam': 3,
+};
 
 const ShelterListPage = () => {
   const toast = useToast();
   const [regionFilter, setRegionFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Input riêng để tránh gọi API liên tục
   
   // API States
   const [shelters, setShelters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 6;
 
-  // Fetch shelters from API
+  // Fetch shelters từ API với filter và pagination
   useEffect(() => {
     const fetchShelters = async () => {
       setLoading(true);
       setError(null);
 
-      const result = await getShelters({ page: 1, pageSize: 50 });
+      const params = {
+        page: currentPage,
+        pageSize: pageSize,
+        ...(searchTerm && { keyword: searchTerm }),
+        ...(REGION_MAP[regionFilter] && { regionID: REGION_MAP[regionFilter] }),
+      };
+
+      const result = await getShelters(params);
 
       if (result.success) {
-        setShelters(result.data.items || []);
+        // Map data từ backend structure sang frontend structure
+        const mappedShelters = (result.data.items || []).map(shelter => ({
+          id: shelter.shelterID,
+          name: shelter.shelterName,
+          address: shelter.location,
+          region: shelter.regionName,
+          animalCount: shelter.totalPets || 0,
+          // Backend không có image/description → dùng defaults
+          image: 'https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80',
+          description: `Trạm cứu hộ ${shelter.shelterName} tại ${shelter.location}`,
+        }));
+
+        setShelters(mappedShelters);
+        setTotalPages(result.data.totalPages || 1);
+        setTotalCount(result.data.totalCount || 0);
       } else {
         setError(result.error);
         toast.error('Failed to load shelters: ' + result.error);
@@ -34,22 +71,26 @@ const ShelterListPage = () => {
     };
 
     fetchShelters();
-  }, [toast]);
+  }, [currentPage, searchTerm, regionFilter, toast]);
 
-  const filteredShelters = shelters.filter(shelter => {
-    // Determine region match. If filter is 'All', it matches.
-    // Otherwise, check if shelter.region (e.g. 'Miền Bắc') includes the filter keyword (e.g. 'Bắc')
-    let matchesRegion = regionFilter === 'All';
-    if (!matchesRegion) {
-        if (regionFilter === 'Miền Bắc') matchesRegion = shelter.region.includes('Bắc');
-        if (regionFilter === 'Miền Trung') matchesRegion = shelter.region.includes('Trung');
-        if (regionFilter === 'Miền Nam') matchesRegion = shelter.region.includes('Nam');
-    }
+  // Handle search submit (chỉ gọi API khi nhấn Enter hoặc click search)
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setSearchTerm(searchInput);
+    setCurrentPage(1); // Reset về trang 1 khi search mới
+  };
 
-    const matchesSearch = shelter.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          shelter.address.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesRegion && matchesSearch;
-  });
+  // Handle region filter change
+  const handleRegionChange = (region) => {
+    setRegionFilter(region);
+    setCurrentPage(1); // Reset về trang 1 khi đổi filter
+  };
+
+  // Handle page change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh', fontFamily: 'var(--font-main)' }}>
@@ -96,15 +137,16 @@ const ShelterListPage = () => {
         {/* Controls */}
         {!loading && !error && (
         <>
+        <form onSubmit={handleSearchSubmit}>
         <div style={{ background: 'white', padding: '1.5rem', borderRadius: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.05)', marginBottom: '3rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }} className="animate-slideUp delay-100">
            
            <div style={{ position: 'relative', flex: 1, minWidth: '300px' }}>
               <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--gray)' }} size={20} />
               <input 
                 type="text" 
-                placeholder="Tìm trạm theo tên hoặc địa điểm..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Tìm trạm theo tên (nhấn Enter)..." 
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 style={{ width: '100%', padding: '0.8rem 1rem 0.8rem 2.8rem', borderRadius: '8px', border: '1px solid #eee', outline: 'none', fontSize: '1rem', transition: 'border-color 0.2s' }}
                 className="focus:border-primary"
               />
@@ -115,7 +157,8 @@ const ShelterListPage = () => {
               {['All', 'Miền Bắc', 'Miền Trung', 'Miền Nam'].map(region => (
                 <button 
                   key={region} 
-                  onClick={() => setRegionFilter(region)}
+                  type="button"
+                  onClick={() => handleRegionChange(region)}
                   className="btn hover-scale"
                   style={{ 
                       whiteSpace: 'nowrap',
@@ -132,11 +175,24 @@ const ShelterListPage = () => {
               ))}
            </div>
         </div>
+        </form>
 
         {/* Grid */}
+        {shelters.length === 0 ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            background: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}>
+            <p style={{ fontSize: '1.2rem', color: '#666', marginBottom: '10px' }}>😔 Không tìm thấy trạm nào</p>
+            <p style={{ color: '#999' }}>Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
+          </div>
+        ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '2rem' }}>
-           {filteredShelters.map((shelter, index) => (
-             <div key={shelter.id} style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', border: 'none', animationDelay: `${index * 50}ms` }} className="card hover-lift group animate-fadeIn">
+           {shelters.map((shelter, index) => (
+             <div key={shelter?.id || `shelter-${index}`} style={{ background: 'white', borderRadius: '16px', overflow: 'hidden', border: 'none', animationDelay: `${index * 50}ms` }} className="card hover-lift group animate-fadeIn">
                 <div style={{ height: '240px', overflow: 'hidden', position: 'relative' }}>
                    <img 
                      src={shelter.image} 
@@ -168,6 +224,17 @@ const ShelterListPage = () => {
              </div>
            ))}
         </div>
+        )}
+
+        {/* Pagination */}
+        {shelters.length > 0 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            onPageChange={handlePageChange}
+          />
+        )}
         </>
         )}
 

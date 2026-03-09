@@ -32,27 +32,54 @@ export const getAllCategories = async () => {
  * Thêm category mới
  * 
  * @param {Object} categoryData
- * @param {string} categoryData.name - Tên category
- * @param {string} categoryData.description - Mô tả
- * @param {string} categoryData.icon - Icon emoji (optional)
+ * @param {string} categoryData.categoryName - Tên category (bắt buộc)
+ * @param {string} categoryData.categoryType - Loại category (bắt buộc, e.g., "Pet")
  */
 export const createCategory = async (categoryData) => {
   try {
     const response = await axiosInstance.post('/admin/categories', {
-      name: categoryData.name,
-      description: categoryData.description || '',
-      icon: categoryData.icon || '',
+      categoryName: categoryData.categoryName,
+      categoryType: categoryData.categoryType,
     });
     
     return {
       success: true,
       data: response.data,
-      message: 'Thêm category thành công!',
+      message: 'Thêm thể loại thành công!',
     };
   } catch (error) {
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to create category',
+    };
+  }
+};
+
+/**
+ * PUT /api/admin/categories/{categoryId}
+ * Cập nhật category
+ * 
+ * @param {number} categoryId - Category ID
+ * @param {Object} categoryData
+ * @param {string} categoryData.categoryName - Tên category (bắt buộc)
+ * @param {string} categoryData.categoryType - Loại category (bắt buộc)
+ */
+export const updateCategory = async (categoryId, categoryData) => {
+  try {
+    const response = await axiosInstance.put(`/admin/categories/${categoryId}`, {
+      categoryName: categoryData.categoryName,
+      categoryType: categoryData.categoryType,
+    });
+    
+    return {
+      success: true,
+      data: response.data,
+      message: 'Cập nhật thể loại thành công!',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to update category',
     };
   }
 };
@@ -86,15 +113,17 @@ export const deleteCategory = async (categoryId) => {
 export const validateCategoryData = (data) => {
   const errors = {};
   
-  if (!data.name) errors.name = 'Vui lòng nhập tên category';
+  if (!data.categoryName) errors.categoryName = 'Vui lòng nhập tên thể loại';
   
-  if (data.name && data.name.length < 2) {
-    errors.name = 'Tên category phải có ít nhất 2 ký tự';
+  if (data.categoryName && data.categoryName.length < 2) {
+    errors.categoryName = 'Tên thể loại phải có ít nhất 2 ký tự';
   }
   
-  if (data.name && data.name.length > 50) {
-    errors.name = 'Tên category không được quá 50 ký tự';
+  if (data.categoryName && data.categoryName.length > 50) {
+    errors.categoryName = 'Tên thể loại không được quá 50 ký tự';
   }
+  
+  if (!data.categoryType) errors.categoryType = 'Vui lòng chọn loại thể loại';
   
   return {
     isValid: Object.keys(errors).length === 0,
@@ -125,13 +154,22 @@ export const CATEGORY_ICON_SUGGESTIONS = [
  */
 export const canDeleteCategory = (category) => {
   // Không thể xóa nếu còn pets trong category
-  return !category.petCount || category.petCount === 0;
+  return !category.itemCount || category.itemCount === 0;
 };
 
 /**
  * Utility: Format category with count
  */
 export const formatCategoryWithCount = (category) => {
-  const count = category.petCount || 0;
-  return `${category.name} (${count} thú cưng)`;
+  const count = category.itemCount || 0;
+  return `${category.categoryName} (${count} thú cưng)`;
 };
+
+/**
+ * Utility: Category types
+ */
+export const CATEGORY_TYPES = [
+  { value: 'Pet', label: 'Thú cưng' },
+  { value: 'Supply', label: 'Vật phẩm' },
+  { value: 'Service', label: 'Dịch vụ' },
+];

@@ -25,7 +25,7 @@ export const getAllShelters = async (params = {}) => {
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const response = await axiosInstance.get(`/admin/shelters?${queryString}`);
+    const response = await axiosInstance.get(`/Admin/shelters?${queryString}`);
     
     return {
       success: true,
@@ -48,7 +48,7 @@ export const getAllShelters = async (params = {}) => {
  */
 export const updateShelterStatus = async (id, status) => {
   try {
-    const response = await axiosInstance.patch(`/admin/shelters/${id}/status`, {
+    const response = await axiosInstance.patch(`/Admin/shelters/${id}/status`, {
       status,
     });
     
@@ -73,7 +73,7 @@ export const updateShelterStatus = async (id, status) => {
  */
 export const deleteShelter = async (id) => {
   try {
-    const response = await axiosInstance.delete(`/admin/shelters/${id}`);
+    const response = await axiosInstance.delete(`/Admin/shelters/${id}`);
     
     return {
       success: true,
