@@ -9,6 +9,7 @@ import AdoptionFormModal from '../../components/AdoptionFormModal';
 import { getPets } from '../../services/public/petsService';
 import { getShelters } from '../../services/public/sheltersService';
 import { createVNPayDonation, getCurrentUserId, redirectToVNPay, DONATION_PRESETS, formatAmountDisplay } from '../../services/public/donationService';
+import { getHomeStats } from '../../services/public/homeStatsService';
 import Navbar from '../../components/Navbar';
 
 const UserLandingPage = () => {
@@ -30,6 +31,7 @@ const UserLandingPage = () => {
   // API States
   const [animals, setAnimals] = useState([]);
   const [partners, setPartners] = useState([]);
+  const [homeStats, setHomeStats] = useState(null);
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState(null);
   
@@ -40,6 +42,12 @@ const UserLandingPage = () => {
     const fetchData = async () => {
       setLoading(true);
       setError(null);
+
+      // Fetch home stats
+      const statsResult = await getHomeStats();
+      if (statsResult.success) {
+        setHomeStats(statsResult.data);
+      }
 
       // Fetch pets
       const result = await getPets({ page: 1, pageSize: 50 });
@@ -255,15 +263,15 @@ const UserLandingPage = () => {
             textAlign: 'center' 
          }}>
              <div className="hover-lift" style={{ padding: '1rem', borderRadius: '12px' }}>
-                <h3 style={{ fontSize: '3rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 800 }}>12k+</h3>
+                <h3 style={{ fontSize: '3rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 800 }}>{homeStats ? homeStats.totalRescuedPets : '...'}</h3>
                 <p style={{ color: 'var(--gray)', fontWeight: 600, fontSize: '1.1rem' }}>Động vật được cứu</p>
              </div>
              <div className="hover-lift" style={{ padding: '1rem', borderRadius: '12px' }}>
-                <h3 style={{ fontSize: '3rem', color: 'var(--secondary)', marginBottom: '0.5rem', fontWeight: 800 }}>8.5k</h3>
+                <h3 style={{ fontSize: '3rem', color: 'var(--secondary)', marginBottom: '0.5rem', fontWeight: 800 }}>{homeStats ? homeStats.successfulAdoptions : '...'}</h3>
                 <p style={{ color: 'var(--gray)', fontWeight: 600, fontSize: '1.1rem' }}>Ca nhận nuôi thành công</p>
              </div>
              <div className="hover-lift" style={{ padding: '1rem', borderRadius: '12px' }}>
-                <h3 style={{ fontSize: '3rem', color: 'var(--warning)', marginBottom: '0.5rem', fontWeight: 800 }}>15</h3>
+                <h3 style={{ fontSize: '3rem', color: 'var(--warning)', marginBottom: '0.5rem', fontWeight: 800 }}>{homeStats ? homeStats.activeShelters : '...'}</h3>
                 <p style={{ color: 'var(--gray)', fontWeight: 600, fontSize: '1.1rem' }}>Trạm cứu hộ hoạt động</p>
              </div>
          </div>

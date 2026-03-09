@@ -12,20 +12,24 @@ import axiosInstance from '../axiosConfig';
  * Lấy danh sách tất cả shelters (Admin view)
  * 
  * @param {Object} params - Query params
- * @param {string} params.status - Filter by status (Active/Inactive/Pending)
- * @param {number} params.page - Page number
- * @param {number} params.pageSize - Page size
+ * @param {string} params.Keyword - Tìm kiếm theo tên shelter
+ * @param {number} params.RegionID - Lọc theo khu vực
+ * @param {string} params.Status - Filter by status (Active/Inactive/Pending)
+ * @param {number} params.Page - Page number
+ * @param {number} params.PageSize - Page size
  */
 export const getAllShelters = async (params = {}) => {
   try {
     const queryParams = {
-      page: params.page || 1,
-      pageSize: params.pageSize || 10,
-      ...(params.status && { status: params.status }),
+      Page: params.Page || 1,
+      PageSize: params.PageSize || 10,
+      ...(params.Keyword && { Keyword: params.Keyword }),
+      ...(params.RegionID && { RegionID: params.RegionID }),
+      ...(params.Status && { Status: params.Status }),
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const response = await axiosInstance.get(`/Admin/shelters?${queryString}`);
+    const response = await axiosInstance.get(`/admin/shelters?${queryString}`);
     
     return {
       success: true,
@@ -40,6 +44,26 @@ export const getAllShelters = async (params = {}) => {
 };
 
 /**
+ * POST /api/admin/shelters
+ * Tạo shelter mới (Admin only)
+ */
+export const createShelter = async (data) => {
+  try {
+    const response = await axiosInstance.post('/admin/shelters', data);
+    return {
+      success: true,
+      data: response.data,
+      message: 'Tạo trạm cứu hộ thành công!',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to create shelter',
+    };
+  }
+};
+
+/**
  * PATCH /api/admin/shelters/{id}/status
  * Cập nhật trạng thái shelter (Admin can activate/deactivate)
  * 
@@ -48,7 +72,7 @@ export const getAllShelters = async (params = {}) => {
  */
 export const updateShelterStatus = async (id, status) => {
   try {
-    const response = await axiosInstance.patch(`/Admin/shelters/${id}/status`, {
+    const response = await axiosInstance.patch(`/admin/shelters/${id}/status`, {
       status,
     });
     
@@ -73,7 +97,7 @@ export const updateShelterStatus = async (id, status) => {
  */
 export const deleteShelter = async (id) => {
   try {
-    const response = await axiosInstance.delete(`/Admin/shelters/${id}`);
+    const response = await axiosInstance.delete(`/admin/shelters/${id}`);
     
     return {
       success: true,

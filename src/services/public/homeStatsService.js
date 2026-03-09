@@ -6,18 +6,17 @@ import axiosInstance from '../axiosConfig';
  */
 
 /**
- * GET /api/home-stats
+ * GET /api/HomeStats
  * Lấy thống kê tổng quan cho homepage
  * 
  * @returns {Object} Stats data
- * @returns {number} data.totalPets - Tổng số thú cưng
- * @returns {number} data.totalAdoptions - Số lượng đã được nhận nuôi
- * @returns {number} data.totalShelters - Số trạm cứu hộ
- * @returns {number} data.totalVolunteers - Số tình nguyện viên
+ * @returns {number} data.totalRescuedPets - Tổng số thú cưng được cứu hộ
+ * @returns {number} data.successfulAdoptions - Số lượng nhận nuôi thành công
+ * @returns {number} data.activeShelters - Số trạm cứu hộ đang hoạt động
  */
 export const getHomeStats = async () => {
   try {
-    const response = await axiosInstance.get('/home-stats');
+    const response = await axiosInstance.get('/HomeStats');
     
     return {
       success: true,

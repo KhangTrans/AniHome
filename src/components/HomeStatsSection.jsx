@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getHomeStats, formatNumber, formatCurrency, calculateAdoptionRate } from '../services/public/homeStatsService';
+import { getHomeStats, formatNumber, calculateAdoptionRate } from '../services/public/homeStatsService';
 import { Link } from 'react-router-dom';
-import { Heart, Home, Users, DollarSign, TrendingUp, ArrowRight } from 'lucide-react';
+import { Heart, Home, TrendingUp, ArrowRight } from 'lucide-react';
 
 /**
  * HOME STATS SECTION
@@ -51,7 +51,7 @@ export default function HomeStatsSection() {
     return null; // Don't show error, just hide the section
   }
 
-  const adoptionRate = calculateAdoptionRate(stats.adoptedPets, stats.totalPets);
+  const adoptionRate = calculateAdoptionRate(stats.successfulAdoptions, stats.totalRescuedPets);
 
   return (
     <section style={{ 
@@ -79,39 +79,24 @@ export default function HomeStatsSection() {
         }}>
           <StatCard
             icon={<Heart size={40} />}
-            value={formatNumber(stats.totalPets)}
-            label="Total Pets"
+            value={formatNumber(stats.totalRescuedPets)}
+            label="Thú Cưng Được Cứu Hộ"
             color="#ef4444"
           />
 
           <StatCard
             icon={<TrendingUp size={40} />}
-            value={formatNumber(stats.adoptedPets)}
-            label="Successfully Adopted"
+            value={formatNumber(stats.successfulAdoptions)}
+            label="Nhận Nuôi Thành Công"
             color="#10b981"
-            subtitle={`${adoptionRate}% adoption rate`}
+            subtitle={`${adoptionRate}% tỷ lệ nhận nuôi`}
           />
 
           <StatCard
             icon={<Home size={40} />}
-            value={formatNumber(stats.totalShelters)}
-            label="Partner Shelters"
+            value={formatNumber(stats.activeShelters)}
+            label="Trạm Cứu Hộ Hoạt Động"
             color="#8b5cf6"
-          />
-
-          <StatCard
-            icon={<Users size={40} />}
-            value={formatNumber(stats.totalVolunteers)}
-            label="Volunteers"
-            color="#f59e0b"
-          />
-
-          <StatCard
-            icon={<DollarSign size={40} />}
-            value={formatCurrency(stats.totalDonations)}
-            label="Total Donations"
-            color="#ec4899"
-            fullWidth
           />
         </div>
 
