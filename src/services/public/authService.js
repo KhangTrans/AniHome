@@ -111,13 +111,13 @@ export const login = async (usernameOrEmail, password) => {
 };
 
 /**
- * POST /api/Auth/google
+ * POST /api/auth/google-login
  * Đăng nhập bằng Google (Requires Google OAuth Setup)
  */
 export const loginWithGoogle = async (googleToken) => {
   try {
-    const response = await axiosInstance.post('/Auth/google', {
-      token: googleToken,
+    const response = await axiosInstance.post('/auth/google-login', {
+      idToken: googleToken,
     });
     
     // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL }
