@@ -75,7 +75,8 @@ export const addShelterPet = async (shelterId, petData) => {
       healthStatus: petData.healthStatus,
       vaccinationStatus: petData.vaccinationStatus,
       description: petData.description,
-      imageURL: petData.imageURL,
+      imageURL: petData.imageUrls?.[0] || petData.imageURL || '',
+      imageUrls: petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
       status: petData.status || 'Available',
     });
     
@@ -91,6 +92,46 @@ export const addShelterPet = async (shelterId, petData) => {
     };
   }
 };
+
+/**
+ * PUT /api/manage-shelter/{shelterId}/pets/{petId}
+ * Cập nhật thông tin pet
+ * 
+ * @param {number} shelterId - Shelter ID
+ * @param {number} petId - Pet ID
+ * @param {Object} petData - Pet information
+ */
+export const updateShelterPet = async (shelterId, petId, petData) => {
+  try {
+    const response = await axiosInstance.put(`/manage-shelter/${shelterId}/pets/${petId}`, {
+      petName: petData.petName,
+      categoryID: petData.categoryID,
+      breed: petData.breed,
+      age: petData.age,
+      gender: petData.gender,
+      color: petData.color,
+      weight: petData.weight,
+      healthStatus: petData.healthStatus,
+      vaccinationStatus: petData.vaccinationStatus,
+      description: petData.description,
+      imageURL: petData.imageUrls?.[0] || petData.imageURL || '',
+      imageUrls: petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
+      status: petData.status || 'Available',
+    });
+    
+    return {
+      success: true,
+      data: response.data,
+      message: 'Cập nhật hồ sơ thú cưng thành công.',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to update pet',
+    };
+  }
+};
+
 
 /**
  * PATCH /api/manage-shelter/{shelterId}/pets/{petId}/status
