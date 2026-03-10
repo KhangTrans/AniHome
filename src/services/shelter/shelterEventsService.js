@@ -29,6 +29,7 @@ export const getShelterEvents = async (shelterId, params = {}) => {
       : `/manage-shelter/${shelterId}/events`;
       
     const response = await axiosInstance.get(url);
+    console.log('Fetching Events URL:', url, 'Result:', response.data);
     
     return {
       success: true,
@@ -66,6 +67,7 @@ export const createShelterEvent = async (shelterId, eventData) => {
       description: eventData.description,
       location: eventData.location,
       reminderBefore: eventData.reminderBefore || null,
+      endTime: eventData.endTime || null,
     });
     
     return {

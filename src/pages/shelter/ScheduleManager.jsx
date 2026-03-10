@@ -1,11 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Calendar, Badge, Row, Col, Timeline, Button, Space, Tag, Spin, Empty } from 'antd';
-import { Clock, Plus, MapPin } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../context/ToastContext';
-import { getShelterEvents, createShelterEvent, EVENT_TYPES, getEventTypeInfo } from '../../services/shelter/shelterEventsService';
-import EventFormModal from './components/EventFormModal';
-import dayjs from 'dayjs';
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  Calendar,
+  Badge,
+  Row,
+  Col,
+  Timeline,
+  Button,
+  Space,
+  Tag,
+  Spin,
+  Empty,
+} from "antd";
+import { Clock, Plus, MapPin } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
+import {
+  getShelterEvents,
+  createShelterEvent,
+  EVENT_TYPES,
+  getEventTypeInfo,
+} from "../../services/shelter/shelterEventsService";
+import EventFormModal from "./components/EventFormModal";
+import dayjs from "dayjs";
 
 const ScheduleManager = () => {
   const { user } = useAuth();
@@ -19,25 +36,64 @@ const ScheduleManager = () => {
 
   const shelterID = user?.shelterID || 1;
 
-  // Fetch events cho tháng đang xem
-  const fetchEvents = useCallback(async (date) => {
-    setLoading(true);
-    try {
-      const from = date.startOf('month').format('YYYY-MM-DD');
-      const to = date.endOf('month').format('YYYY-MM-DD');
+  // Helpers để lấy dữ liệu chính xác từ object (hỗ trợ cả camelCase và PascalCase)
+  const getEventDate = (evt) => {
+    const date =
+      evt.eventDate ||
+      evt.EventDate ||
+      evt.startDate ||
+      evt.StartDate ||
+      evt.startTime ||
+      evt.StartTime ||
+      evt.date ||
+      evt.Date;
+    return date;
+  };
 
-      const result = await getShelterEvents(shelterID, { from, to });
-      if (result.success) {
-        setEvents(Array.isArray(result.data) ? result.data : []);
-      } else {
-        toast.error(result.error || 'Không thể tải lịch hẹn');
+  const getEventName = (evt) =>
+    evt.eventName ||
+    evt.EventName ||
+    evt.title ||
+    evt.Title ||
+    evt.name ||
+    evt.Name ||
+    "Sự kiện không tên";
+  const getPetName = (evt) =>
+    evt.petName || evt.PetName || evt.pet?.petName || evt.Pet?.PetName;
+  const getEventType = (evt) => evt.eventType || evt.EventType || "Other";
+  const getEventID = (evt) =>
+    evt.eventID || evt.EventID || evt.eventID || evt.id || evt.Id;
+  const getDescription = (evt) => evt.description || evt.Description || "";
+
+  // Fetch events cho tháng đang xem
+  const fetchEvents = useCallback(
+    async (date) => {
+      setLoading(true);
+      try {
+        const from = date.startOf("month").format("YYYY-MM-DD");
+        const to = date.endOf("month").format("YYYY-MM-DD");
+
+        const result = await getShelterEvents(shelterID, { from, to });
+        if (result.success) {
+          const data = Array.isArray(result.data)
+            ? result.data
+            : result.data?.items || [];
+          console.log("🗓️ Dữ liệu sự kiện nhận được:", data);
+          if (data.length > 0) {
+            console.log("🔍 Kiểm tra item đầu tiên:", data[0]);
+          }
+          setEvents(data);
+        } else {
+          toast.error(result.error || "Không thể tải lịch hẹn");
+        }
+      } catch {
+        toast.error("Đã xảy ra lỗi khi tải dữ liệu");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.error('Đã xảy ra lỗi khi tải dữ liệu');
-    } finally {
-      setLoading(false);
-    }
-  }, [shelterID, toast]);
+    },
+    [shelterID, toast],
+  );
 
   useEffect(() => {
     fetchEvents(calendarValue);
@@ -56,7 +112,7 @@ const ScheduleManager = () => {
         toast.error(result.error);
       }
     } catch {
-      toast.error('Đã xảy ra lỗi khi tạo sự kiện');
+      toast.error("Đã xảy ra lỗi khi tạo sự kiện");
     } finally {
       setFormLoading(false);
     }
@@ -69,31 +125,35 @@ const ScheduleManager = () => {
 
   // Render badge cho từng ngày trên calendar
   const dateCellRender = (value) => {
-    const dateStr = value.format('YYYY-MM-DD');
-    const dayEvents = events.filter(evt => {
-      const evtDate = dayjs(evt.eventDate).format('YYYY-MM-DD');
+    const dateStr = value.format("YYYY-MM-DD");
+    const dayEvents = events.filter((evt) => {
+      const actualDate = getEventDate(evt);
+      if (!actualDate) return false;
+      const evtDate = dayjs(actualDate).format("YYYY-MM-DD");
       return evtDate === dateStr;
     });
 
     return (
-      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {dayEvents.map((evt) => {
-          const typeInfo = getEventTypeInfo(evt.eventType);
+          const typeInfo = getEventTypeInfo(getEventType(evt));
           return (
-            <li key={evt.eventID}>
+            <li key={getEventID(evt)}>
               <Badge
                 status="default"
                 color={typeInfo.color}
                 text={
-                  <span style={{
-                    fontSize: '0.75rem',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: 'block',
-                    maxWidth: '100%'
-                  }}>
-                    {evt.eventName}
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      display: "block",
+                      maxWidth: "100%",
+                    }}
+                  >
+                    {getEventName(evt)}
                   </span>
                 }
               />
@@ -106,26 +166,37 @@ const ScheduleManager = () => {
 
   // Lọc sự kiện sắp tới (từ hôm nay trở đi)
   const upcomingEvents = events
-    .filter(evt => dayjs(evt.eventDate).isAfter(dayjs().subtract(1, 'day')))
-    .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate));
+    .filter((evt) => {
+      const actualDate = getEventDate(evt);
+      return (
+        actualDate && dayjs(actualDate).isAfter(dayjs().subtract(1, "day"))
+      );
+    })
+    .sort((a, b) => new Date(getEventDate(a)) - new Date(getEventDate(b)));
 
   // Thống kê
-  const thisWeekEnd = dayjs().endOf('week');
-  const thisWeekEvents = events.filter(evt => {
-    const d = dayjs(evt.eventDate);
-    return d.isAfter(dayjs().startOf('week')) && d.isBefore(thisWeekEnd);
+  const thisWeekEnd = dayjs().endOf("week");
+  const thisWeekEvents = events.filter((evt) => {
+    const actualDate = getEventDate(evt);
+    if (!actualDate) return false;
+    const d = dayjs(actualDate);
+    return d.isAfter(dayjs().startOf("week")) && d.isBefore(thisWeekEnd);
   });
 
   return (
     <div>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 24
-      }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Lịch Hẹn</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 24,
+        }}
+      >
+        <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 600 }}>
+          Lịch Hẹn
+        </h1>
         <Button
           type="primary"
           icon={<Plus size={16} />}
@@ -142,58 +213,96 @@ const ScheduleManager = () => {
           <Col xs={24} lg={8}>
             <Card
               title={
-                <span style={{ fontSize: '1rem', fontWeight: 600 }}>
-                  <Clock size={18} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                <span style={{ fontSize: "1rem", fontWeight: 600 }}>
+                  <Clock
+                    size={18}
+                    style={{ marginRight: 8, verticalAlign: "middle" }}
+                  />
                   Sự Kiện Sắp Tới
                 </span>
               }
               style={{ borderRadius: 8 }}
             >
               {upcomingEvents.length === 0 ? (
-                <Empty description="Không có sự kiện sắp tới" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                <Empty
+                  description="Không có sự kiện sắp tới"
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                />
               ) : (
                 <Timeline
-                  items={upcomingEvents.slice(0, 8).map(evt => {
-                    const typeInfo = getEventTypeInfo(evt.eventType);
+                  items={upcomingEvents.slice(0, 8).map((evt) => {
+                    const typeInfo = getEventTypeInfo(getEventType(evt));
+                    const petName = getPetName(evt);
+                    const desc = getDescription(evt);
+
                     return {
                       color: typeInfo.color,
                       children: (
                         <div>
-                          <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-start',
-                            marginBottom: 4
-                          }}>
-                            <span style={{ fontWeight: 500 }}>{evt.eventName}</span>
-                            <Tag color={typeInfo.color} style={{ marginLeft: 8, flexShrink: 0 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              marginBottom: 4,
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, fontSize: "1rem" }}>
+                              {getEventName(evt)}
+                            </span>
+                            <Tag
+                              color={typeInfo.color}
+                              style={{ marginLeft: 8, flexShrink: 0 }}
+                            >
                               {typeInfo.icon} {typeInfo.label}
                             </Tag>
                           </div>
-                          {evt.petName && (
-                            <div style={{ fontSize: '0.85rem', color: '#595959', marginBottom: 2 }}>
-                              🐾 {evt.petName}
+                          {petName && (
+                            <div
+                              style={{
+                                fontSize: "0.85rem",
+                                color: "#595959",
+                                marginBottom: 2,
+                              }}
+                            >
+                              🐾{" "}
+                              <span style={{ fontWeight: 500 }}>{petName}</span>
                             </div>
                           )}
-                          {evt.description && (
-                            <div style={{ fontSize: '0.82rem', color: '#8c8c8c', marginBottom: 2 }}>
-                              {evt.description}
+                          {desc && (
+                            <div
+                              style={{
+                                fontSize: "0.82rem",
+                                color: "#8c8c8c",
+                                marginBottom: 2,
+                              }}
+                            >
+                              {desc}
                             </div>
                           )}
-                          <Space size="small" style={{ fontSize: '0.85rem', color: '#8c8c8c' }}>
+                          <Space
+                            size="small"
+                            style={{ fontSize: "0.85rem", color: "#8c8c8c" }}
+                          >
                             <Clock size={14} />
-                            <span>{dayjs(evt.eventDate).format('DD/MM/YYYY [lúc] HH:mm')}</span>
+                            <span>
+                              {dayjs(getEventDate(evt)).format(
+                                "DD/MM/YYYY [lúc] HH:mm",
+                              )}
+                            </span>
                           </Space>
                           {evt.status && (
-                            <Tag 
-                              color={evt.status === 'Scheduled' ? 'blue' : 'default'} 
-                              style={{ marginLeft: 8, fontSize: '0.75rem' }}
+                            <Tag
+                              color={
+                                evt.status === "Scheduled" ? "blue" : "default"
+                              }
+                              style={{ marginLeft: 8, fontSize: "0.75rem" }}
                             >
                               {evt.status}
                             </Tag>
                           )}
                         </div>
-                      )
+                      ),
                     };
                   })}
                 />
@@ -202,20 +311,32 @@ const ScheduleManager = () => {
 
             {/* Quick Stats */}
             <Card
-              style={{ marginTop: 16, borderRadius: 8, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
-              styles={{ body: { padding: '20px' } }}
+              style={{
+                marginTop: 16,
+                borderRadius: 8,
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+              }}
+              styles={{ body: { padding: "20px" } }}
             >
               <Row gutter={16}>
                 <Col span={12}>
-                  <div style={{ textAlign: 'center', color: 'white' }}>
-                    <div style={{ fontSize: '2rem', fontWeight: 600 }}>{events.length}</div>
-                    <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Tổng Sự Kiện</div>
+                  <div style={{ textAlign: "center", color: "white" }}>
+                    <div style={{ fontSize: "2rem", fontWeight: 600 }}>
+                      {events.length}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                      Tổng Sự Kiện
+                    </div>
                   </div>
                 </Col>
                 <Col span={12}>
-                  <div style={{ textAlign: 'center', color: 'white' }}>
-                    <div style={{ fontSize: '2rem', fontWeight: 600 }}>{thisWeekEvents.length}</div>
-                    <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Tuần Này</div>
+                  <div style={{ textAlign: "center", color: "white" }}>
+                    <div style={{ fontSize: "2rem", fontWeight: 600 }}>
+                      {thisWeekEvents.length}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", opacity: 0.9 }}>
+                      Tuần Này
+                    </div>
                   </div>
                 </Col>
               </Row>
@@ -226,14 +347,14 @@ const ScheduleManager = () => {
           <Col xs={24} lg={16}>
             <Card
               style={{ borderRadius: 8 }}
-              styles={{ body: { padding: '16px' } }}
+              styles={{ body: { padding: "16px" } }}
             >
               <Calendar
                 value={calendarValue}
                 onPanelChange={handlePanelChange}
                 onSelect={(date) => setCalendarValue(date)}
                 cellRender={(current, info) => {
-                  if (info.type === 'date') return dateCellRender(current);
+                  if (info.type === "date") return dateCellRender(current);
                   return info.originNode;
                 }}
                 style={{ borderRadius: 8 }}

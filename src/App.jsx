@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
+import { Toaster } from "react-hot-toast";
 
 // Admin Pages
 import SuperAdminDashboard from "./pages/admin/SuperAdminDashboard";
@@ -72,6 +73,7 @@ const RootRedirect = () => {
 function App() {
   return (
     <ToastProvider>
+      <Toaster position="top-right" reverseOrder={false} />
       <AuthProvider>
         <Router>
           <Routes>

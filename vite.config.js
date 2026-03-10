@@ -9,7 +9,9 @@ export default defineConfig({
       '/api': {
         target: 'https://tramcuuho.onrender.com',
         changeOrigin: true,
-        secure: false,
+        secure: true,
+        timeout: 60000,
+        proxyTimeout: 60000,
       }
     }
   }
