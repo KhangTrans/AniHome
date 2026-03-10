@@ -93,6 +93,59 @@ export const createVNPayDonation = async (donationData) => {
   }
 };
 
+/**
+ * POST /api/Donations/vietqr
+ * Tạo mã QR VietQR để donate
+ * 
+ * @returns {Object} { success, data: { qrImageUrl, transferMessage, transactionID }, error }
+ */
+export const createVietQRDonation = async (donationData) => {
+  try {
+    const payload = {
+      amount: donationData.amount,
+      message: donationData.message || '',
+      donorName: donationData.donorName || '',
+    };
+
+    if (donationData.petID) payload.petID = donationData.petID;
+    if (donationData.shelterID) payload.shelterID = donationData.shelterID;
+    if (donationData.userID) payload.userID = donationData.userID;
+
+    const response = await axiosInstance.post('/Donations/vietqr', payload);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Không thể tạo mã QR. Vui lòng thử lại.',
+    };
+  }
+};
+
+/**
+ * GET /api/Donations/vietqr/check/{transactionID}
+ * Kiểm tra trạng thái giao dịch VietQR
+ */
+export const checkVietQRStatus = async (transactionID) => {
+  try {
+    // Lưu ý: Nếu backend sử dụng query param thay vì path param, hãy điều chỉnh /check?transactionID=...
+    const response = await axiosInstance.get(`/Donations/vietqr/check/${transactionID}`);
+    
+    return {
+      success: true,
+      data: response.data, // { status: 'Success' | 'Pending' }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Error checking status',
+    };
+  }
+};
+
 // Alias for backward compatibility
 export const createDonationPayment = createVNPayDonation;
 
