@@ -20,7 +20,8 @@ export const getPosts = async (params = {}) => {
     const queryParams = {
       page: params.page || 1,
       pageSize: params.pageSize || 10,
-      ...(params.keyword && { keyword: params.keyword }),
+      ...(params.searchTerm && { searchTerm: params.searchTerm }),
+      ...(params.postType && { postType: params.postType }),
       ...(params.status && { status: params.status }),
     };
 

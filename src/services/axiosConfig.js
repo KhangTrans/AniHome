@@ -40,10 +40,11 @@ axiosInstance.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         
-        if (!refreshToken) {
+        if (!refreshToken || refreshToken === 'undefined') {
           // Không có refresh token, redirect to login
           localStorage.clear();
           window.location.href = '/login';
+          console.error('[Axios Interceptor] Missing refresh token. Cannot refresh.');
           return Promise.reject(error);
         }
 
@@ -62,6 +63,7 @@ axiosInstance.interceptors.response.use(
         return axiosInstance(originalRequest);
       } catch (refreshError) {
         // Refresh token thất bại, logout
+        console.error('[Axios Interceptor] Refresh token failed:', refreshError);
         localStorage.clear();
         window.location.href = '/login';
         return Promise.reject(refreshError);

@@ -8,12 +8,21 @@ import AnimalManager from "./AnimalManager";
 import ScheduleManager from "./ScheduleManager";
 import InventoryManager from "./InventoryManager";
 import AdoptionManager from "./AdoptionManager";
-import { Home, Calendar, Package, Dog, Menu, Heart } from "lucide-react";
+import {
+  Home,
+  Calendar,
+  Package,
+  Dog,
+  Menu,
+  Heart,
+  FileText,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
   startNotificationConnection,
   stopConnection,
 } from "../../services/notificationHub";
+import PostManager from "./PostManager";
 
 const { Sider, Content } = Layout;
 
@@ -61,6 +70,11 @@ const ShelterDashboard = () => {
       label: "Yêu Cầu Nhận Nuôi",
       path: "/shelter/adoptions",
       icon: <Heart size={20} />,
+    },
+    {
+      label: "Bài Viết",
+      path: "/shelter/posts",
+      icon: <FileText size={20} />,
     },
     {
       label: "Lịch Hẹn",
@@ -149,6 +163,7 @@ const ShelterDashboard = () => {
             <Route path="/" element={<ShelterOverview />} />
             <Route path="/animals" element={<AnimalManager />} />
             <Route path="/adoptions" element={<AdoptionManager />} />
+            <Route path="/posts" element={<PostManager />} />
             <Route path="/calendar" element={<ScheduleManager />} />
             <Route path="/inventory" element={<InventoryManager />} />
           </Routes>
