@@ -16,6 +16,7 @@ import {
   Menu,
   Heart,
   FileText,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -23,6 +24,7 @@ import {
   stopConnection,
 } from "../../services/notificationHub";
 import PostManager from "./PostManager";
+import RegionalRescueManager from "./RegionalRescueManager";
 
 const { Sider, Content } = Layout;
 
@@ -75,6 +77,11 @@ const ShelterDashboard = () => {
       label: "Bài Viết",
       path: "/shelter/posts",
       icon: <FileText size={20} />,
+    },
+    {
+      label: "Cứu Hộ Khu Vực",
+      path: "/shelter/rescue-requests",
+      icon: <ShieldAlert size={20} />,
     },
     {
       label: "Lịch Hẹn",
@@ -164,6 +171,10 @@ const ShelterDashboard = () => {
             <Route path="/animals" element={<AnimalManager />} />
             <Route path="/adoptions" element={<AdoptionManager />} />
             <Route path="/posts" element={<PostManager />} />
+            <Route
+              path="/rescue-requests"
+              element={<RegionalRescueManager />}
+            />
             <Route path="/calendar" element={<ScheduleManager />} />
             <Route path="/inventory" element={<InventoryManager />} />
           </Routes>

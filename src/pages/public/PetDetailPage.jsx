@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
 
 /**
  * PET DETAIL PAGE
@@ -103,362 +105,339 @@ export default function PetDetailPage() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#f9fafb" }}>
-      {/* Back Button */}
-      <div
-        style={{
-          background: "white",
-          borderBottom: "1px solid #e5e7eb",
-          padding: "20px",
-        }}
-      >
-        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          <Link
-            to="/pets"
+      <Navbar />
+      <div>
+        {/* Main Content */}
+        <div
+          style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}
+        >
+          <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              color: "#3b82f6",
-              textDecoration: "none",
-              fontSize: "1rem",
-              fontWeight: "500",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "40px",
             }}
           >
-            <ArrowLeft size={20} />
-            Quay lại danh sách thú cưng
-          </Link>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div
-        style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "40px",
-          }}
-        >
-          {/* ── LEFT: Image Gallery ── */}
-          <div>
-            {/* Main image */}
-            <div
-              style={{
-                position: "relative",
-                borderRadius: "16px",
-                overflow: "hidden",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-              }}
-            >
-              <img
-                src={
-                  images[activeIdx] ||
-                  "https://placehold.co/600x500?text=No+Image"
-                }
-                alt={pet.petName}
+            {/* ── LEFT: Image Gallery ── */}
+            <div>
+              {/* Main image */}
+              <div
                 style={{
-                  width: "100%",
-                  height: "480px",
-                  objectFit: "cover",
-                  display: "block",
+                  position: "relative",
+                  borderRadius: "16px",
+                  overflow: "hidden",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                 }}
-              />
+              >
+                <img
+                  src={
+                    images[activeIdx] ||
+                    "https://placehold.co/600x500?text=No+Image"
+                  }
+                  alt={pet.petName}
+                  style={{
+                    width: "100%",
+                    height: "480px",
+                    objectFit: "cover",
+                    display: "block",
+                  }}
+                />
 
-              {/* Prev / Next buttons — chỉ hiện khi có nhiều hơn 1 ảnh */}
+                {/* Prev / Next buttons — chỉ hiện khi có nhiều hơn 1 ảnh */}
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => prevImage(images)}
+                      style={navBtnStyle("left")}
+                      aria-label="Ảnh trước"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <button
+                      onClick={() => nextImage(images)}
+                      style={navBtnStyle("right")}
+                      aria-label="Ảnh tiếp theo"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
+
+                    {/* Dot indicators */}
+                    <div
+                      style={{
+                        position: "absolute",
+                        bottom: "12px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        display: "flex",
+                        gap: "8px",
+                      }}
+                    >
+                      {images.map((_, i) => (
+                        <span
+                          key={i}
+                          onClick={() => setActiveIdx(i)}
+                          style={{
+                            width: i === activeIdx ? "24px" : "8px",
+                            height: "8px",
+                            borderRadius: "4px",
+                            background:
+                              i === activeIdx
+                                ? "#3b82f6"
+                                : "rgba(255,255,255,0.7)",
+                            cursor: "pointer",
+                            transition: "all 0.3s ease",
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Thumbnail strip */}
               {images.length > 1 && (
-                <>
-                  <button
-                    onClick={() => prevImage(images)}
-                    style={navBtnStyle("left")}
-                    aria-label="Ảnh trước"
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button
-                    onClick={() => nextImage(images)}
-                    style={navBtnStyle("right")}
-                    aria-label="Ảnh tiếp theo"
-                  >
-                    <ChevronRight size={24} />
-                  </button>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginTop: "12px",
+                    overflowX: "auto",
+                    paddingBottom: "4px",
+                  }}
+                >
+                  {images.map((url, i) => (
+                    <img
+                      key={i}
+                      src={url}
+                      alt={`Ảnh ${i + 1}`}
+                      onClick={() => setActiveIdx(i)}
+                      style={{
+                        width: "80px",
+                        height: "80px",
+                        flexShrink: 0,
+                        objectFit: "cover",
+                        borderRadius: "10px",
+                        cursor: "pointer",
+                        border:
+                          i === activeIdx
+                            ? "3px solid #3b82f6"
+                            : "3px solid transparent",
+                        opacity: i === activeIdx ? 1 : 0.65,
+                        transition: "all 0.2s ease",
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
 
-                  {/* Dot indicators */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: "12px",
-                      left: "50%",
-                      transform: "translateX(-50%)",
-                      display: "flex",
-                      gap: "8px",
-                    }}
-                  >
-                    {images.map((_, i) => (
-                      <span
-                        key={i}
-                        onClick={() => setActiveIdx(i)}
-                        style={{
-                          width: i === activeIdx ? "24px" : "8px",
-                          height: "8px",
-                          borderRadius: "4px",
-                          background:
-                            i === activeIdx
-                              ? "#3b82f6"
-                              : "rgba(255,255,255,0.7)",
-                          cursor: "pointer",
-                          transition: "all 0.3s ease",
-                        }}
-                      />
-                    ))}
-                  </div>
-                </>
+              {/* Image counter */}
+              {images.length > 1 && (
+                <p
+                  style={{
+                    textAlign: "center",
+                    color: "#9ca3af",
+                    fontSize: "0.85rem",
+                    marginTop: "8px",
+                  }}
+                >
+                  {activeIdx + 1} / {images.length}
+                </p>
               )}
             </div>
 
-            {/* Thumbnail strip */}
-            {images.length > 1 && (
+            {/* ── RIGHT: Pet Info ── */}
+            <div>
+              {/* Status Badge */}
               <div
                 style={{
-                  display: "flex",
-                  gap: "10px",
-                  marginTop: "12px",
-                  overflowX: "auto",
-                  paddingBottom: "4px",
+                  display: "inline-block",
+                  background:
+                    pet.status === "Available"
+                      ? "#d1fae5"
+                      : pet.status === "Pending"
+                        ? "#fef3c7"
+                        : "#f3f4f6",
+                  color:
+                    pet.status === "Available"
+                      ? "#10b981"
+                      : pet.status === "Pending"
+                        ? "#f59e0b"
+                        : "#6b7280",
+                  padding: "6px 16px",
+                  borderRadius: "20px",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  marginBottom: "16px",
                 }}
               >
-                {images.map((url, i) => (
-                  <img
-                    key={i}
-                    src={url}
-                    alt={`Ảnh ${i + 1}`}
-                    onClick={() => setActiveIdx(i)}
-                    style={{
-                      width: "80px",
-                      height: "80px",
-                      flexShrink: 0,
-                      objectFit: "cover",
-                      borderRadius: "10px",
-                      cursor: "pointer",
-                      border:
-                        i === activeIdx
-                          ? "3px solid #3b82f6"
-                          : "3px solid transparent",
-                      opacity: i === activeIdx ? 1 : 0.65,
-                      transition: "all 0.2s ease",
-                    }}
-                  />
-                ))}
+                {pet.status === "Available"
+                  ? "Sẵn sàng nhận nuôi"
+                  : pet.status === "Pending"
+                    ? "Đang xét duyệt"
+                    : pet.status === "Adopted"
+                      ? "Đã được nhận nuôi"
+                      : pet.status}
               </div>
-            )}
 
-            {/* Image counter */}
-            {images.length > 1 && (
+              <h1
+                style={{ fontSize: "2.2rem", margin: "0 0 8px", color: "#111" }}
+              >
+                {pet.petName}
+              </h1>
               <p
                 style={{
-                  textAlign: "center",
-                  color: "#9ca3af",
-                  fontSize: "0.85rem",
-                  marginTop: "8px",
-                }}
-              >
-                {activeIdx + 1} / {images.length}
-              </p>
-            )}
-          </div>
-
-          {/* ── RIGHT: Pet Info ── */}
-          <div>
-            {/* Status Badge */}
-            <div
-              style={{
-                display: "inline-block",
-                background:
-                  pet.status === "Available"
-                    ? "#d1fae5"
-                    : pet.status === "Pending"
-                      ? "#fef3c7"
-                      : "#f3f4f6",
-                color:
-                  pet.status === "Available"
-                    ? "#10b981"
-                    : pet.status === "Pending"
-                      ? "#f59e0b"
-                      : "#6b7280",
-                padding: "6px 16px",
-                borderRadius: "20px",
-                fontSize: "0.85rem",
-                fontWeight: "600",
-                marginBottom: "16px",
-              }}
-            >
-              {pet.status === "Available"
-                ? "Sẵn sàng nhận nuôi"
-                : pet.status === "Pending"
-                  ? "Đang xét duyệt"
-                  : pet.status === "Adopted"
-                    ? "Đã được nhận nuôi"
-                    : pet.status}
-            </div>
-
-            <h1
-              style={{ fontSize: "2.2rem", margin: "0 0 8px", color: "#111" }}
-            >
-              {pet.petName}
-            </h1>
-            <p
-              style={{
-                fontSize: "1.1rem",
-                color: "#6b7280",
-                marginBottom: "24px",
-              }}
-            >
-              {pet.breed} · {pet.categoryName}
-            </p>
-
-            {/* Shelter info */}
-            {pet.shelterName && (
-              <div
-                style={{
-                  background: "#f3f4f6",
-                  padding: "14px 18px",
-                  borderRadius: "12px",
+                  fontSize: "1.1rem",
+                  color: "#6b7280",
                   marginBottom: "24px",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: "12px",
                 }}
               >
-                <MapPin
-                  size={20}
-                  color="#6b7280"
-                  style={{ marginTop: "2px", flexShrink: 0 }}
-                />
-                <div>
-                  <div
-                    style={{
-                      fontSize: "0.8rem",
-                      color: "#9ca3af",
-                      marginBottom: "2px",
-                    }}
-                  >
-                    Trạm cứu hộ
-                  </div>
-                  <div style={{ fontWeight: "600", color: "#374151" }}>
-                    {pet.shelterName}
-                  </div>
-                  {pet.shelterLocation && (
+                {pet.breed} · {pet.categoryName}
+              </p>
+
+              {/* Shelter info */}
+              {pet.shelterName && (
+                <div
+                  style={{
+                    background: "#f3f4f6",
+                    padding: "14px 18px",
+                    borderRadius: "12px",
+                    marginBottom: "24px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "12px",
+                  }}
+                >
+                  <MapPin
+                    size={20}
+                    color="#6b7280"
+                    style={{ marginTop: "2px", flexShrink: 0 }}
+                  />
+                  <div>
                     <div
                       style={{
-                        fontSize: "0.85rem",
-                        color: "#6b7280",
-                        marginTop: "2px",
+                        fontSize: "0.8rem",
+                        color: "#9ca3af",
+                        marginBottom: "2px",
                       }}
                     >
-                      {pet.shelterLocation}
+                      Trạm cứu hộ
                     </div>
-                  )}
+                    <div style={{ fontWeight: "600", color: "#374151" }}>
+                      {pet.shelterName}
+                    </div>
+                    {pet.shelterLocation && (
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#6b7280",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {pet.shelterLocation}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Info grid */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "12px",
-                marginBottom: "24px",
-              }}
-            >
-              <InfoItem label="Loại thú" value={pet.categoryName} />
-              <InfoItem label="Giống" value={pet.breed || "Chưa rõ"} />
-              <InfoItem
-                label="Cập nhật lần cuối"
-                value={
-                  pet.updatedAt
-                    ? new Date(pet.updatedAt).toLocaleDateString("vi-VN")
-                    : "Chưa rõ"
-                }
-              />
-              <InfoItem
-                label="Trạng thái"
-                value={
-                  pet.status === "Available"
-                    ? "Sẵn sàng"
-                    : pet.status === "Pending"
-                      ? "Đang xét duyệt"
-                      : pet.status === "Adopted"
-                        ? "Đã nhận nuôi"
-                        : pet.status
-                }
-              />
-            </div>
-
-            {/* Description */}
-            {pet.description && (
-              <div style={{ marginBottom: "28px" }}>
-                <h3
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    marginBottom: "10px",
-                    color: "#374151",
-                  }}
-                >
-                  Giới thiệu về {pet.petName}
-                </h3>
-                <p
-                  style={{
-                    color: "#6b7280",
-                    lineHeight: "1.8",
-                    fontSize: "0.95rem",
-                  }}
-                >
-                  {pet.description}
-                </p>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div style={{ display: "flex", gap: "12px" }}>
-              <Link
-                to={`/adoption/${pet.petID}`}
+              {/* Info grid */}
+              <div
                 style={{
-                  flex: 1,
-                  padding: "14px",
-                  background:
-                    pet.status === "Available" ? "#3b82f6" : "#e5e7eb",
-                  color: pet.status === "Available" ? "white" : "#9ca3af",
-                  textDecoration: "none",
-                  borderRadius: "12px",
-                  fontSize: "1rem",
-                  fontWeight: "600",
-                  textAlign: "center",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  pointerEvents: pet.status === "Available" ? "auto" : "none",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(2, 1fr)",
+                  gap: "12px",
+                  marginBottom: "24px",
                 }}
               >
-                <Heart size={18} />
-                {pet.status === "Available"
-                  ? `Nhận nuôi ${pet.petName}`
-                  : "Không khả dụng"}
-              </Link>
+                <InfoItem label="Loại thú" value={pet.categoryName} />
+                <InfoItem label="Giống" value={pet.breed || "Chưa rõ"} />
+                <InfoItem
+                  label="Cập nhật lần cuối"
+                  value={
+                    pet.updatedAt
+                      ? new Date(pet.updatedAt).toLocaleDateString("vi-VN")
+                      : "Chưa rõ"
+                  }
+                />
+                <InfoItem
+                  label="Trạng thái"
+                  value={
+                    pet.status === "Available"
+                      ? "Sẵn sàng"
+                      : pet.status === "Pending"
+                        ? "Đang xét duyệt"
+                        : pet.status === "Adopted"
+                          ? "Đã nhận nuôi"
+                          : pet.status
+                  }
+                />
+              </div>
+
+              {/* Description */}
+              {pet.description && (
+                <div style={{ marginBottom: "28px" }}>
+                  <h3
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: "600",
+                      marginBottom: "10px",
+                      color: "#374151",
+                    }}
+                  >
+                    Giới thiệu về {pet.petName}
+                  </h3>
+                  <p
+                    style={{
+                      color: "#6b7280",
+                      lineHeight: "1.8",
+                      fontSize: "0.95rem",
+                    }}
+                  >
+                    {pet.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: "12px" }}>
+                <Link
+                  to={`/adoption/${pet.petID}`}
+                  style={{
+                    flex: 1,
+                    padding: "14px",
+                    background:
+                      pet.status === "Available" ? "#3b82f6" : "#e5e7eb",
+                    color: pet.status === "Available" ? "white" : "#9ca3af",
+                    textDecoration: "none",
+                    borderRadius: "12px",
+                    fontSize: "1rem",
+                    fontWeight: "600",
+                    textAlign: "center",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    pointerEvents: pet.status === "Available" ? "auto" : "none",
+                  }}
+                >
+                  <Heart size={18} />
+                  {pet.status === "Available"
+                    ? `Nhận nuôi ${pet.petName}`
+                    : "Không khả dụng"}
+                </Link>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <style>{`
+        <style>{`
         @keyframes spin {
           0%   { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
         }
       `}</style>
+      </div>
+      <Footer />
     </div>
   );
 }

@@ -53,44 +53,27 @@ export const login = async (usernameOrEmail, password) => {
     
     const response = await axiosInstance.post('/Auth/login', payload);
     
-    // Backend trả về: { accessToken, refreshToken, fullName, avatarURL }
-    const { accessToken, refreshToken, fullName, avatarURL } = response.data;
+    // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL }
+    const data = response.data;
+    const { 
+      userID, 
+      roleID, 
+      accessToken, 
+      refreshToken, 
+      fullName, 
+      avatarURL 
+    } = data;
     
-    // Decode JWT để lấy thông tin user (bao gồm roleID)
-    let roleID = 4; // Default: User thường
-    let userId = null;
-    
-    try {
-      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
-      console.log('Decoded Token Payload:', tokenPayload); // IN RA ĐỂ XEM
-      
-      // Backend có thể lưu role/roleId/RoleId trong token
-      roleID = Number(tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || tokenPayload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) || 4;
-      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || tokenPayload.nameid || tokenPayload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || null;
-    } catch {
-      // Use default roleID = 4 if token decode fails
-    }
-
-    // Extract shelterID from token if available
-    let shelterID = null;
-    try {
-      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
-      shelterID = tokenPayload.shelterID || tokenPayload.shelterId || tokenPayload.ShelterId || null;
-    } catch {
-      // shelterID not available in token
-    }
-    
-    // Tạo user object từ response
+    // Tạo user object đầy đủ để lưu trữ và phân quyền
     const user = {
-      userId,
-      fullName,
-      avatarURL,
+      userId: userID || data.userID || data.userId || data.UserId,
+      roleID: roleID || data.roleID || data.roleId || data.RoleId,
+      fullName: fullName || data.fullName || data.FullName,
+      avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
       usernameOrEmail,
-      roleID,
-      shelterID,
     };
     
-    // Lưu vào localStorage
+    // Lưu vào localStorage theo yêu cầu duy trì trạng thái
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
@@ -102,8 +85,10 @@ export const login = async (usernameOrEmail, password) => {
         refreshToken,
         user,
       },
+      role: user.roleID
     };
   } catch (error) {
+    console.error('Login error:', error.response?.data || error.message);
     return {
       success: false,
       error: error.response?.data?.message || 'Sai tài khoản hoặc mật khẩu',
@@ -122,27 +107,12 @@ export const loginWithGoogle = async (googleToken) => {
     });
     
     // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL }
-    const { accessToken, refreshToken, fullName, avatarURL } = response.data;
-    
-    // Decode JWT để lấy thông tin user
-    let roleID = 4;
-    let userId = null;
-    
-    try {
-      const tokenPayload = JSON.parse(atob(accessToken.split('.')[1]));
-      console.log('Decoded Google Token Payload:', tokenPayload); // IN RA
-      roleID = Number(tokenPayload.roleId || tokenPayload.RoleId || tokenPayload.role || tokenPayload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role']) || 4;
-      userId = tokenPayload.userId || tokenPayload.UserId || tokenPayload.sub || tokenPayload.nameid || tokenPayload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || null;
-    } catch {
-      // Use default roleID = 4 if token decode fails
-    }
-    
-    const user = {
-      userId,
-      fullName,
-      avatarURL,
-      roleID,
-    };
+    // Backend trả về: { accessToken, refreshToken, fullName, avatarURL }
+    const data = response.data;
+    const accessToken = data.accessToken || data.AccessToken;
+    const refreshToken = data.refreshToken || data.RefreshToken;
+    const fullName = data.fullName || data.FullName || data.full_name;
+    const avatarURL = data.avatarURL || data.AvatarURL || data.avatar_url;
     
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);

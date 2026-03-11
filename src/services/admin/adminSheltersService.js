@@ -70,16 +70,59 @@ export const getShelterDetail = async (id) => {
  */
 export const createShelter = async (data) => {
   try {
-    const response = await axiosInstance.post('/admin/shelters', data);
+    // Cấu trúc Body theo đặc tả mới nhất (camelCase)
+    const payload = {
+      shelterName: data.shelterName,
+      location: data.location,
+      description: data.description || "",
+      regionID: data.regionID ? Number(data.regionID) : null,
+      
+      // Thông tin tài khoản quản lý
+      managerUsername: data.managerUsername,
+      managerPassword: data.managerPassword,
+      managerFullName: data.managerFullName,
+      managerEmail: data.managerEmail,
+      managerPhone: data.managerPhone || "",
+
+      // Thông tin ngân hàng (Bắt buộc)
+      bankBin: data.bankBin || "",
+      bankName: data.bankName || "",
+      accountNumber: data.accountNumber || "",
+      accountOwner: data.accountOwner || "",
+
+      // Hình ảnh của trạm (Mới bổ sung)
+      imageUrls: data.imageUrls || [],
+    };
+
+    console.log('--- REQUST PAYLOAD (POST /admin/shelters) ---', payload);
+
+    const response = await axiosInstance.post('/admin/shelters', payload);
     return {
       success: true,
       data: response.data,
       message: 'Tạo trạm cứu hộ thành công!',
     };
   } catch (error) {
+    console.error('Create Shelter API Error Detail:', error.response?.data);
+    
+    // Phân tích mã lỗi từ Backend
+    const errorData = error.response?.data;
+    let errorMessage = 'Không thể tạo trạm cứu hộ.';
+    
+    if (errorData?.message) {
+      errorMessage = errorData.message;
+    } else if (errorData?.errors) {
+      // Lỗi validation từ ASP.NET Core
+      const details = Object.entries(errorData.errors)
+        .map(([field, msgs]) => `${field}: ${msgs.join(', ')}`)
+        .join('; ');
+      errorMessage = `Lỗi dữ liệu: ${details}`;
+    }
+
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to create shelter',
+      error: errorMessage,
+      details: errorData?.errors,
     };
   }
 };

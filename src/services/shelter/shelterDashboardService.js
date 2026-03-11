@@ -30,6 +30,54 @@ export const getShelterDashboard = async (shelterId) => {
 };
 
 /**
+ * GET /api/manage-shelter/{shelterId}/profile
+ * Lấy thông tin chi tiết hồ sơ trạm cứu hộ (Dành cho Quản lý trạm)
+ */
+export const getShelterProfile = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(`/manage-shelter/${shelterId}/profile`);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to fetch shelter profile',
+    };
+  }
+};
+
+/**
+ * PUT /api/manage-shelter/{shelterId}/profile
+ * Cập nhật hồ sơ trạm (Bao gồm danh sách ảnh imageUrls)
+ */
+export const updateShelterProfile = async (shelterId, profileData) => {
+  try {
+    const response = await axiosInstance.put(`/manage-shelter/${shelterId}/profile`, {
+      shelterName: profileData.shelterName,
+      location: profileData.location,
+      description: profileData.description,
+      bankName: profileData.bankName,
+      accountNumber: profileData.accountNumber,
+      imageUrls: profileData.imageUrls || [],
+    });
+    
+    return {
+      success: true,
+      data: response.data,
+      message: 'Cập nhật hồ sơ trạm thành công!',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to update shelter profile',
+    };
+  }
+};
+
+/**
  * Utility: Format dashboard stats
  */
 export const formatDashboardStats = (stats) => {

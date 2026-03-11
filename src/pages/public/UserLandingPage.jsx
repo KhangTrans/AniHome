@@ -33,7 +33,12 @@ import {
   formatAmountDisplay,
 } from "../../services/public/donationService";
 import { getHomeStats } from "../../services/public/homeStatsService";
+import {
+  getHappyStories,
+  formatPostDate,
+} from "../../services/public/postsService";
 import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
 import { QrCode, Copy, Loader2 } from "lucide-react";
 
 const UserLandingPage = () => {
@@ -63,6 +68,7 @@ const UserLandingPage = () => {
   // API States
   const [animals, setAnimals] = useState([]);
   const [partners, setPartners] = useState([]);
+  const [happyStories, setHappyStories] = useState([]);
   const [homeStats, setHomeStats] = useState(null);
   const [_loading, setLoading] = useState(true);
   const [_error, setError] = useState(null);
@@ -110,16 +116,32 @@ const UserLandingPage = () => {
       const sheltersResult = await getShelters({ page: 1, pageSize: 5 });
       if (sheltersResult.success) {
         const mappedShelters = (sheltersResult.data.items || []).map(
-          (shelter) => ({
-            id: shelter.shelterID,
-            name: shelter.shelterName,
-            location: shelter.location,
-            region: shelter.regionName,
-            animalCount: shelter.totalPets || 0,
-            img: "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80", // Default image
-          }),
+          (shelter) => {
+            let shelterImg =
+              "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80"; // Default image
+            if (shelter.imageURL) {
+              shelterImg = shelter.imageURL;
+            } else if (shelter.imageUrls && shelter.imageUrls.length > 0) {
+              shelterImg = shelter.imageUrls[0];
+            }
+
+            return {
+              id: shelter.shelterID,
+              name: shelter.shelterName,
+              location: shelter.location,
+              region: shelter.regionName,
+              animalCount: shelter.totalPets || 0,
+              img: shelterImg,
+            };
+          },
         );
         setPartners(mappedShelters);
+      }
+
+      // Fetch happy stories
+      const storiesResult = await getHappyStories();
+      if (storiesResult.success) {
+        setHappyStories(storiesResult.data || []);
       }
 
       setLoading(false);
@@ -146,27 +168,6 @@ const UserLandingPage = () => {
 
     return () => clearInterval(scrollInterval);
   }, []);
-
-  const stories = [
-    {
-      id: 1,
-      title: "Hành trình của Bella",
-      text: "Từ chú chó hoang thành cục cưng sofa!",
-      img: "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=200&q=80",
-    },
-    {
-      id: 2,
-      title: "Đôi chân kỳ diệu",
-      text: "Mèo con 3 chân tìm được mái ấm.",
-      img: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=200&q=80",
-    },
-    {
-      id: 3,
-      title: "Tình bạn già",
-      text: "Ông lão 80 tuổi nhận nuôi chú chó 10 tuổi.",
-      img: "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=200&q=80",
-    },
-  ];
 
   const filteredAnimals = animals.filter((a) => {
     if (!a) return false;
@@ -698,94 +699,6 @@ const UserLandingPage = () => {
           </div>
         </section>
 
-        {/* Community Success Stories */}
-        <section id="stories" className="mb-20">
-          <h3
-            style={{
-              fontSize: "2.5rem",
-              marginBottom: "3rem",
-              textAlign: "center",
-              fontWeight: 800,
-            }}
-          >
-            Câu Chuyện Hạnh Phúc
-          </h3>
-          <div
-            style={{
-              display: "flex",
-              gap: "2rem",
-              overflowX: "auto",
-              paddingBottom: "2rem",
-              scrollSnapType: "x mandatory",
-              WebkitOverflowScrolling: "touch",
-            }}
-            className="hide-scrollbar"
-          >
-            {stories.map((story) => (
-              <div
-                key={story.id}
-                className="card hover-lift"
-                style={{
-                  width: "350px",
-                  padding: 0,
-                  overflow: "hidden",
-                  border: "none",
-                  borderRadius: "20px",
-                  scrollSnapAlign: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    height: "240px",
-                    overflow: "hidden",
-                    position: "relative",
-                  }}
-                >
-                  <img
-                    src={story.img}
-                    alt={story.title}
-                    className="card-img-zoom"
-                  />
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      background:
-                        "linear-gradient(to top, rgba(0,0,0,0.6), transparent)",
-                      display: "flex",
-                      alignItems: "flex-end",
-                      padding: "1.5rem",
-                    }}
-                  >
-                    <h4
-                      style={{
-                        color: "white",
-                        fontSize: "1.4rem",
-                        fontWeight: 700,
-                        textShadow: "0 2px 4px rgba(0,0,0,0.5)",
-                      }}
-                    >
-                      {story.title}
-                    </h4>
-                  </div>
-                </div>
-                <div style={{ padding: "1.5rem" }}>
-                  <p
-                    style={{
-                      color: "var(--gray)",
-                      fontSize: "1rem",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    {story.text}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
         {/* Partner Shelters Carousel */}
         <section className="mb-20">
           <div style={{ textAlign: "center", marginBottom: "2.5rem" }}>
@@ -900,6 +813,195 @@ const UserLandingPage = () => {
           </div>
         </section>
 
+        {/* Happy Stories Section */}
+        {happyStories && happyStories.length > 0 && (
+          <section
+            style={{
+              padding: "4rem 2rem",
+              background: "#fff",
+              position: "relative",
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "3rem" }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.5rem 1rem",
+                  background: "#fef3c7",
+                  color: "#d97706",
+                  fontWeight: "bold",
+                  borderRadius: "20px",
+                  marginBottom: "1rem",
+                }}
+              >
+                <Heart size={16} fill="currentColor" /> Phép Màu Có Thật
+              </div>
+              <h2
+                style={{
+                  fontSize: "clamp(2rem, 4vw, 3rem)",
+                  fontWeight: 800,
+                  color: "var(--dark)",
+                  marginBottom: "1rem",
+                }}
+              >
+                Câu Chuyện Hạnh Phúc
+              </h2>
+              <p
+                style={{
+                  color: "#64748b",
+                  fontSize: "1.1rem",
+                  maxWidth: "600px",
+                  margin: "0 auto",
+                  lineHeight: 1.6,
+                }}
+              >
+                Những hành trình vượt qua giông bão để tìm thấy bến đỗ bình yên
+                của các bé thú cưng.
+              </p>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: "2rem",
+                maxWidth: "1200px",
+                margin: "0 auto",
+              }}
+            >
+              {happyStories.slice(0, 3).map((story) => {
+                let imageUrl =
+                  "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80";
+                try {
+                  if (story.thumbnail) {
+                    const parsed = JSON.parse(story.thumbnail);
+                    if (Array.isArray(parsed) && parsed.length > 0)
+                      imageUrl = parsed[0];
+                  }
+                } catch (e) {}
+
+                return (
+                  <Link
+                    key={story.postID}
+                    to={`/blog/${story.postID}`}
+                    style={{
+                      textDecoration: "none",
+                      color: "inherit",
+                      display: "flex",
+                    }}
+                  >
+                    <div
+                      style={{
+                        background: "white",
+                        borderRadius: "24px",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        width: "100%",
+                        border: "1px solid #f1f5f9",
+                        boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
+                        transition: "transform 0.3s ease, box-shadow 0.3s ease",
+                      }}
+                      className="hover:scale-105 hover:shadow-xl"
+                    >
+                      <div style={{ height: "220px", overflow: "hidden" }}>
+                        <img
+                          src={imageUrl}
+                          alt={story.title}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                          }}
+                        />
+                      </div>
+                      <div
+                        style={{
+                          padding: "1.5rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          flex: 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            fontSize: "0.85rem",
+                            color: "#94a3b8",
+                            marginBottom: "0.75rem",
+                          }}
+                        >
+                          <Calendar size={14} />{" "}
+                          {formatPostDate(story.createdAt)}
+                        </div>
+                        <h3
+                          style={{
+                            fontSize: "1.25rem",
+                            fontWeight: 700,
+                            color: "#1e293b",
+                            marginBottom: "0.75rem",
+                            lineHeight: 1.4,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {story.title}
+                        </h3>
+                        <p
+                          style={{
+                            color: "#64748b",
+                            fontSize: "0.95rem",
+                            lineHeight: 1.6,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            flex: 1,
+                          }}
+                        >
+                          {String(
+                            story.excerpt ||
+                              story.content?.replace(/<[^>]*>?/gm, "") ||
+                              "",
+                          )
+                            .replace(/&nbsp;/g, " ")
+                            .substring(0, 120) + "..."}
+                        </p>
+                        <div
+                          style={{
+                            marginTop: "1rem",
+                            color: "var(--primary)",
+                            fontWeight: 600,
+                            fontSize: "0.9rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          Đọc thêm <ArrowRight size={16} />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+            {happyStories.length > 3 && (
+              <div style={{ textAlign: "center", marginTop: "3rem" }}>
+                <Link to="/blog?type=HappyStory" className="btn btn-outline">
+                  Xem tất cả câu chuyện
+                </Link>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Newsletter */}
         <section
           style={{
@@ -944,94 +1046,7 @@ const UserLandingPage = () => {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer
-        style={{
-          background: "#f8f9fa",
-          color: "var(--dark)",
-          padding: "4rem 2rem",
-          marginTop: "2rem",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-            gap: "3rem",
-          }}
-        >
-          <div>
-            <h4
-              style={{
-                fontSize: "1.2rem",
-                marginBottom: "1rem",
-                color: "var(--primary)",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              <PawPrint size={20} /> PetRescue
-            </h4>
-            <p style={{ color: "var(--gray)", fontSize: "0.9rem" }}>
-              Làm cho thế giới tốt đẹp hơn, từng bé một.
-            </p>
-          </div>
-          <div>
-            <h4 style={{ fontSize: "1rem", marginBottom: "1rem" }}>Liên Kết</h4>
-            <ul
-              style={{
-                listStyle: "none",
-                color: "var(--gray)",
-                fontSize: "0.9rem",
-                lineHeight: "2",
-              }}
-            >
-              <li>
-                <a href="#">Về Chúng Tôi</a>
-              </li>
-              <li>
-                <a href="#">Tình Nguyện</a>
-              </li>
-              <li>
-                <a href="#">Quyên Góp</a>
-              </li>
-              <li>
-                <a href="#">Điều Khoản</a>
-              </li>
-            </ul>
-          </div>
-          <div>
-            <h4 style={{ fontSize: "1rem", marginBottom: "1rem" }}>Liên Hệ</h4>
-            <p
-              style={{
-                color: "var(--gray)",
-                fontSize: "0.9rem",
-                marginBottom: "0.5rem",
-              }}
-            >
-              123 Đường Cứu Hộ, TP.HCM
-            </p>
-            <p style={{ color: "var(--gray)", fontSize: "0.9rem" }}>
-              hello@petrescue.com
-            </p>
-          </div>
-        </div>
-        <div
-          style={{
-            textAlign: "center",
-            marginTop: "3rem",
-            paddingTop: "2rem",
-            borderTop: "1px solid #eee",
-            color: "var(--gray)",
-            fontSize: "0.8rem",
-          }}
-        >
-          &copy; 2026 Animal Rescue Platform. Built for EXE101 Demo.
-        </div>
-      </footer>
+      <Footer />
 
       {/* --- MODALS --- */}
       {/* Adoption Form Modal (New) */}

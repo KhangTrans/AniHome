@@ -27,6 +27,7 @@ import ForgotPasswordPage from "./pages/public/ForgotPasswordPage";
 import ShelterListPage from "./pages/public/ShelterListPage";
 import ShelterDetailPage from "./pages/public/ShelterDetailPage";
 import BlogListPage from "./pages/public/BlogListPage";
+import BlogDetailPage from "./pages/public/BlogDetailPage";
 import PetsListPage from "./pages/public/PetsListPage";
 import PetDetailPage from "./pages/public/PetDetailPage";
 import DonationPage from "./pages/public/DonationPage";
@@ -35,6 +36,12 @@ import DonationFailedPage from "./pages/public/DonationFailedPage";
 
 // User Profile
 import UserProfilePage from "./pages/user/UserProfilePage";
+
+// Rescue Request
+import RescueRequestPage from "./pages/public/RescueRequestPage";
+
+// Floating Rescue Button
+import RescueFloatingButton from "./components/RescueFloatingButton";
 
 // Protected Route Wrapper
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -50,7 +57,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (user.role === "super_admin") return <Navigate to="/admin" replace />;
     if (user.role === "shelter_admin")
       return <Navigate to="/shelter" replace />;
-    if (user.role === "volunteer") return <Navigate to="/volunteer" replace />;
+    if (user.role === "partner") return <Navigate to="/partner" replace />;
     return <Navigate to="/" replace />;
   }
 
@@ -64,7 +71,7 @@ const RootRedirect = () => {
     if (user.role === "super_admin") return <Navigate to="/admin" replace />;
     if (user.role === "shelter_admin")
       return <Navigate to="/shelter" replace />;
-    if (user.role === "volunteer") return <Navigate to="/volunteer" replace />;
+    if (user.role === "partner") return <Navigate to="/partner" replace />;
     // Adopters stay on landing page but logged in
   }
   return <UserLandingPage />;
@@ -87,6 +94,7 @@ function App() {
             <Route path="/shelters" element={<ShelterListPage />} />
             <Route path="/shelters/:id" element={<ShelterDetailPage />} />
             <Route path="/blog" element={<BlogListPage />} />
+            <Route path="/blog/:id" element={<BlogDetailPage />} />
 
             {/* Public Routes - Pets */}
             <Route path="/pets" element={<PetsListPage />} />
@@ -103,6 +111,16 @@ function App() {
               element={
                 <ProtectedRoute>
                   <UserProfilePage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Rescue Request Route */}
+            <Route
+              path="/rescue-request"
+              element={
+                <ProtectedRoute>
+                  <RescueRequestPage />
                 </ProtectedRoute>
               }
             />
@@ -126,14 +144,16 @@ function App() {
             />
 
             <Route
-              path="/volunteer/*"
+              path="/partner/*"
               element={
-                <ProtectedRoute allowedRoles={["volunteer"]}>
-                  <VolunteerDashboard />
+                <ProtectedRoute allowedRoles={["partner"]}>
+                  <VolunteerDashboard />{" "}
+                  {/* Using existing dashboard for now or until renamed */}
                 </ProtectedRoute>
               }
             />
           </Routes>
+          <RescueFloatingButton />
         </Router>
       </AuthProvider>
     </ToastProvider>

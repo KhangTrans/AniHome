@@ -12,15 +12,14 @@ export const uploadImage = async (file) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await axiosInstance.post('/Upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await axiosInstance.post('/upload', formData);
 
     return {
       success: true,
-      data: response.data,
+      data: {
+        imageUrl: response.data.imageUrl || response.data.url,
+        ...response.data
+      },
     };
   } catch (error) {
     return {

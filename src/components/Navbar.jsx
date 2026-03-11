@@ -115,6 +115,20 @@ const Navbar = () => {
             >
               Tin Tức
             </Link>
+            {user && (
+              <Link
+                to="/rescue-request"
+                className="hover-text-primary transition-colors"
+                style={{
+                  textDecoration: "none",
+                  color: location.pathname.includes("/rescue-request")
+                    ? "var(--primary)"
+                    : "inherit",
+                }}
+              >
+                Cứu Hộ
+              </Link>
+            )}
             <a
               href="#how-it-works"
               className="hover-text-primary transition-colors"
@@ -281,6 +295,21 @@ const Navbar = () => {
           >
             Tin Tức
           </Link>
+          {user && (
+            <Link
+              to="/rescue-request"
+              onClick={toggleMenu}
+              style={{
+                textDecoration: "none",
+                color: "#1f2937",
+                padding: "0.75rem",
+                fontWeight: 600,
+                fontSize: "1.1rem",
+              }}
+            >
+              Cứu Hộ
+            </Link>
+          )}
           <a
             href="#how-it-works"
             onClick={toggleMenu}

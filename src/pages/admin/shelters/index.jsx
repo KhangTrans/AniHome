@@ -19,6 +19,8 @@ import {
   Calendar,
   Heart,
   Users,
+  Upload,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Modal } from "antd";
 import {
@@ -29,6 +31,7 @@ import {
   deleteShelter,
   getAdminShelterStatusBadge,
 } from "../../../services/admin/adminSheltersService";
+import { uploadImage } from "../../../services/public/uploadService";
 import { useToast } from "../../../context/ToastContext";
 
 const ShelterManager = () => {
@@ -59,6 +62,12 @@ const ShelterManager = () => {
     managerFullName: "",
     managerEmail: "",
     managerPhone: "",
+    // Banking fields
+    bankName: "",
+    bankBin: "",
+    accountNumber: "",
+    accountOwner: "",
+    imageUrls: [],
   });
 
   // Address dropdown states
@@ -242,6 +251,43 @@ const ShelterManager = () => {
     fetchShelters();
   }, [statusFilter]);
 
+  // Handle image upload
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    console.log("--- DEBUG: Files selected ---", files);
+    if (files.length === 0) return;
+
+    const newImageUrls = [...createForm.imageUrls];
+
+    for (const file of files) {
+      if (newImageUrls.length >= 5) {
+        toast.error("Chỉ được upload tối đa 5 ảnh");
+        break;
+      }
+
+      console.log(`--- DEBUG: Uploading file: ${file.name} ---`);
+      const result = await uploadImage(file);
+      console.log("--- DEBUG: Upload result ---", result);
+
+      if (result.success) {
+        newImageUrls.push(result.data.imageUrl);
+      } else {
+        toast.error(`Lỗi tải ảnh ${file.name}: ${result.error}`);
+      }
+    }
+
+    setCreateForm((prev) => ({ ...prev, imageUrls: newImageUrls }));
+    // Clear input value to allow re-uploading the same file
+    e.target.value = "";
+  };
+
+  const handleRemoveImage = (indexToRemove) => {
+    setCreateForm((prev) => ({
+      ...prev,
+      imageUrls: prev.imageUrls.filter((_, index) => index !== indexToRemove),
+    }));
+  };
+
   // Handle status change
   const handleStatusChange = async (shelterId, newStatus) => {
     Modal.confirm({
@@ -316,6 +362,11 @@ const ShelterManager = () => {
         managerFullName: "",
         managerEmail: "",
         managerPhone: "",
+        bankName: "",
+        bankBin: "",
+        accountNumber: "",
+        accountOwner: "",
+        imageUrls: [],
       });
       setShowPassword(false);
       resetAddressFields();
@@ -1567,6 +1618,103 @@ const ShelterManager = () => {
                 />
               </div>
 
+              {/* Image Upload Section */}
+              <div>
+                <label style={labelStyle}>
+                  Hình ảnh trạm cứu hộ (Tối đa 5 ảnh)
+                </label>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  {createForm.imageUrls.map((url, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        position: "relative",
+                        width: "80px",
+                        height: "80px",
+                      }}
+                    >
+                      <img
+                        src={url}
+                        alt="shelter"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          borderRadius: "8px",
+                          border: "1px solid #eee",
+                        }}
+                      />
+                      <button
+                        onClick={() => handleRemoveImage(index)}
+                        style={{
+                          position: "absolute",
+                          top: "-5px",
+                          right: "-5px",
+                          background: "#ef4444",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "50%",
+                          width: "20px",
+                          height: "20px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                        }}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+
+                  {createForm.imageUrls.length < 5 && (
+                    <label
+                      htmlFor="shelter-images-upload"
+                      style={{
+                        width: "80px",
+                        height: "80px",
+                        border: "2px dashed #ddd",
+                        borderRadius: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        color: "#999",
+                        transition: "border-color 0.2s",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.borderColor = "var(--primary)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.borderColor = "#ddd")
+                      }
+                    >
+                      <Upload size={20} />
+                      <span style={{ fontSize: "10px", marginTop: "4px" }}>
+                        Tải ảnh
+                      </span>
+                      <input
+                        id="shelter-images-upload"
+                        type="file"
+                        multiple
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+
               <hr
                 style={{
                   border: "none",
@@ -1673,6 +1821,84 @@ const ShelterManager = () => {
                       setCreateForm((f) => ({
                         ...f,
                         managerPhone: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <hr
+                style={{
+                  border: "none",
+                  borderTop: "1px solid #eee",
+                  margin: "0.25rem 0",
+                }}
+              />
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 600,
+                  color: "var(--primary)",
+                  fontSize: "0.95rem",
+                }}
+              >
+                💰 Thông tin ngân hàng (Quyên góp) *
+              </p>
+              <div style={{ display: "flex", gap: "1rem" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Tên ngân hàng *</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="VD: MB Bank"
+                    value={createForm.bankName}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({
+                        ...f,
+                        bankName: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Mã BIN ngân hàng *</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="VD: 970422"
+                    value={createForm.bankBin}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({
+                        ...f,
+                        bankBin: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "1rem" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Số tài khoản *</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="0123456789"
+                    value={createForm.accountNumber}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({
+                        ...f,
+                        accountNumber: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Chủ tài khoản *</label>
+                  <input
+                    style={inputStyle}
+                    placeholder="NGUYEN VAN A"
+                    value={createForm.accountOwner}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({
+                        ...f,
+                        accountOwner: e.target.value,
                       }))
                     }
                   />

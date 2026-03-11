@@ -19,6 +19,7 @@ import {
   formatAmountDisplay,
 } from "../../services/public/donationService";
 import { QrCode, Copy, Loader2, CreditCard } from "lucide-react";
+import Footer from "../../components/Footer";
 
 const ShelterDetailPage = () => {
   const { id } = useParams();
@@ -71,38 +72,56 @@ const ShelterDetailPage = () => {
           backendShelter.description ||
           `Trạm cứu hộ ${backendShelter.shelterName} tại ${backendShelter.location}`,
         createdAt: backendShelter.createdAt,
-        // Defaults for missing fields
         image:
+          (backendShelter.imageUrls && backendShelter.imageUrls[0]) ||
+          backendShelter.imageURL ||
           "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=1200&q=80",
+        imageUrls: backendShelter.imageUrls || [],
+        // Bank info
+        bankName: backendShelter.bankName,
+        accountNumber: backendShelter.accountNumber,
+        bankBin: backendShelter.bankBin,
+        accountOwner: backendShelter.accountOwner,
         phone: null,
         email: null,
       };
       setShelter(mappedShelter);
 
-      // Fetch all animals and filter by shelterId
-      const petsResult = await getPets({ page: 1, pageSize: 100 });
-      if (petsResult.success) {
-        // Map pet data from backend format
-        const mappedPets = (petsResult.data.items || []).map((pet) => ({
+      // Use nested pets from the shelter API if available, else fallback to global pets list
+      if (backendShelter.pets && Array.isArray(backendShelter.pets)) {
+        const mappedPets = backendShelter.pets.map((pet) => ({
           id: pet.petID,
           name: pet.petName,
-          species: pet.speciesName,
-          breed: pet.breedName,
-          age: pet.age,
-          gender: pet.gender,
-          healthStatus: pet.healthStatus,
-          description: pet.description,
-          image: pet.image,
-          shelterId: pet.shelterID,
+          species: pet.categoryName, // Map categoryName to species
+          breed: pet.breed,
+          image: pet.imageURL,
           status: pet.status,
+          description: pet.description || "",
         }));
-
-        const shelterAnimals = mappedPets.filter(
-          (animal) => animal.shelterId === parseInt(id),
-        );
-        setAnimals(shelterAnimals);
+        setAnimals(mappedPets);
       } else {
-        toast.error("Không thể tải danh sách thú cưng: " + petsResult.error);
+        // Fallback: Fetch all animals and filter by shelterId
+        const petsResult = await getPets({ page: 1, pageSize: 100 });
+        if (petsResult.success) {
+          const mappedPets = (petsResult.data.items || []).map((pet) => ({
+            id: pet.petID,
+            name: pet.petName,
+            species: pet.speciesName,
+            breed: pet.breedName,
+            age: pet.age,
+            gender: pet.gender,
+            healthStatus: pet.healthStatus,
+            description: pet.description,
+            image: pet.image,
+            shelterId: pet.shelterID,
+            status: pet.status,
+          }));
+
+          const shelterAnimals = mappedPets.filter(
+            (animal) => animal.shelterId === parseInt(id),
+          );
+          setAnimals(shelterAnimals);
+        }
       }
 
       setLoading(false);
@@ -423,12 +442,95 @@ const ShelterDetailPage = () => {
               >
                 Về Chúng Tôi
               </h3>
-              <p style={{ color: "#666", lineHeight: 1.6 }}>
+              <p
+                style={{ color: "#666", lineHeight: 1.6, marginBottom: "2rem" }}
+              >
                 {shelter.description}
               </p>
 
+              {shelter.bankName && (
+                <>
+                  <h3
+                    style={{
+                      fontSize: "1.25rem",
+                      fontWeight: "bold",
+                      marginTop: "2rem",
+                      marginBottom: "1rem",
+                      borderBottom: "1px solid #eee",
+                      paddingBottom: "0.5rem",
+                    }}
+                  >
+                    Ủng Hộ Trạm
+                  </h3>
+                  <div
+                    style={{
+                      background: "#f8fafc",
+                      padding: "1rem",
+                      borderRadius: "12px",
+                      border: "1px dashed #3b82f6",
+                    }}
+                  >
+                    <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                      Ngân hàng
+                    </div>
+                    <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
+                      {shelter.bankName}
+                    </div>
+
+                    <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                      Số tài khoản
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontWeight: "bold",
+                          fontSize: "1.1rem",
+                          color: "#1e293b",
+                        }}
+                      >
+                        {shelter.accountNumber}
+                      </span>
+                      <button
+                        onClick={() => copyToClipboard(shelter.accountNumber)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#3b82f6",
+                          cursor: "pointer",
+                          padding: 4,
+                        }}
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        color: "#64748b",
+                        marginTop: "0.5rem",
+                      }}
+                    >
+                      Chủ tài khoản
+                    </div>
+                    <div
+                      style={{ fontWeight: 500, textTransform: "uppercase" }}
+                    >
+                      {shelter.accountOwner}
+                    </div>
+                  </div>
+                </>
+              )}
+
               <button
                 className="btn btn-primary"
+                onClick={() => setActiveModal("donate")}
                 style={{
                   width: "100%",
                   marginTop: "1.5rem",
@@ -437,7 +539,7 @@ const ShelterDetailPage = () => {
                   gap: "0.5rem",
                 }}
               >
-                <Heart size={18} /> Ủng Hộ Trạm
+                <Heart size={18} /> Quyên Góp Nhanh
               </button>
             </div>
 
@@ -636,7 +738,11 @@ const ShelterDetailPage = () => {
                 className="btn btn-success"
                 style={{ width: "100%", justifyContent: "center" }}
               >
-                {isDonating ? "Đang xử lý..." : "Quyên Góp Ngay"}
+                {isDonating
+                  ? "Đang xử lý..."
+                  : selectedAnimal
+                    ? `Quyên Góp Cho ${selectedAnimal.name}`
+                    : "Quyên Góp Cho Trạm"}
               </button>
             </form>
           </Modal>
@@ -779,6 +885,7 @@ const ShelterDetailPage = () => {
           </Modal>
         </>
       )}
+      <Footer />
     </div>
   );
 };

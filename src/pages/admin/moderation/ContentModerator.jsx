@@ -84,8 +84,8 @@ const ContentModerator = () => {
     setProcessingId(postId);
     try {
       const result = await reviewPost(postId, {
-        action: "Approved",
-        reason: "",
+        isApproved: true,
+        note: "Nội dung hợp lệ",
       });
 
       if (result.success) {
@@ -118,8 +118,8 @@ const ContentModerator = () => {
 
     try {
       const result = await reviewPost(selectedPostId, {
-        action: "Rejected",
-        reason: rejectReason,
+        isApproved: false,
+        note: rejectReason,
       });
 
       if (result.success) {

@@ -63,6 +63,26 @@ export const getPostById = async (id) => {
 };
 
 /**
+ * GET /api/Posts/happy-stories
+ * Danh sách những câu chuyện hạnh phúc
+ */
+export const getHappyStories = async () => {
+  try {
+    const response = await axiosInstance.get(`/posts/happy-stories`);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to fetch happy stories',
+    };
+  }
+};
+
+/**
  * Utility: Format post date
  */
 export const formatPostDate = (dateString) => {

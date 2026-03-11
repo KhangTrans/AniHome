@@ -1,94 +1,348 @@
-import React from 'react';
-import { Calendar, User, ArrowRight } from 'lucide-react';
-import { Link } from 'react-router-dom';
-import Navbar from '../../components/Navbar';
-
-const BLOG_POSTS = [
-  {
-    id: 1,
-    title: 'Top 10 Tips for First-Time Dog Owners',
-    excerpt: 'Adopting a dog is exciting, but it comes with responsibilities. Here are the essential tips to get you started.',
-    image: 'https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=400&q=80',
-    date: 'Feb 5, 2026',
-    author: 'Dr. Sarah Smith',
-    category: 'Guides'
-  },
-  {
-    id: 2,
-    title: 'Why Senior Pets Make Great Companions',
-    excerpt: 'Senior pets often get overlooked, but they have so much love to give. Discover the benefits of adopting an older animal.',
-    image: 'https://images.unsplash.com/photo-1534361960057-19889db9621e?auto=format&fit=crop&w=400&q=80',
-    date: 'Jan 28, 2026',
-    author: 'Mark Wilson',
-    category: 'Inspiration'
-  },
-  {
-    id: 3,
-    title: 'Understanding Cat Body Language',
-    excerpt: 'Cats can be mysterious. Learn how to interpret their tail wags, ear positions, and vocalizations.',
-    image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&w=400&q=80',
-    date: 'Jan 15, 2026',
-    author: 'Emily Chen',
-    category: 'Behavior'
-  },
-  {
-    id: 4,
-    title: 'Nutrition 101: What to Feed Your Rescue',
-    excerpt: 'Proper nutrition is key to rehabilitation. A guide to choosing the right food for your rescued pet.',
-    image: 'https://images.unsplash.com/photo-1589924691195-41432c84c161?auto=format&fit=crop&w=400&q=80',
-    date: 'Jan 10, 2026',
-    author: 'Dr. Sarah Smith',
-    category: 'Health'
-  }
-];
+import React, { useState, useEffect } from "react";
+import { Calendar, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { Link } from "react-router-dom";
+import Navbar from "../../components/Navbar";
+import Footer from "../../components/Footer";
+import { getPosts, formatPostDate } from "../../services/public/postsService";
+import Pagination from "../../components/Pagination";
 
 const BlogListPage = () => {
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
+
+  useEffect(() => {
+    const fetchBlogPosts = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = {
+          page: currentPage,
+          pageSize: pageSize,
+          status: "Published", // Chỉ lấy bài viết đã duyệt/xuất bản
+        };
+
+        const result = await getPosts(params);
+
+        if (result.success) {
+          // Xử lý dữ liệu trả về từ backend (có thể là mảng trực tiếp hoặc obj có items)
+          let items = [];
+          if (Array.isArray(result.data)) {
+            items = result.data;
+          } else if (result.data && result.data.items) {
+            items = result.data.items;
+            setTotalPages(result.data.totalPages || 1);
+          }
+          setPosts(items);
+        } else {
+          setError(result.error || "Không thể tải danh sách bài viết");
+        }
+      } catch (err) {
+        setError("Đã có lỗi xảy ra kết nối đến máy chủ.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBlogPosts();
+  }, [currentPage]);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Hàm parse thumbnail JSON string
+  const getDisplayImage = (post) => {
+    try {
+      if (post.thumbnail) {
+        const parsed = JSON.parse(post.thumbnail);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed[0];
+      }
+    } catch (e) {}
+    return "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80";
+  };
+
+  const stripHtml = (html) => {
+    if (!html) return "";
+    return html.replace(/<[^>]*>?/gm, "").substring(0, 150) + "...";
+  };
+
   return (
-    <div style={{ backgroundColor: '#fff', minHeight: '100vh' }}>
-       <Navbar />
-       <div style={{ padding: '4rem 2rem' }}>
-       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-          
-          <div className="text-center mb-16">
-             <h1 style={{ fontSize: '3rem', marginBottom: '1rem', color: 'var(--dark)' }}>Rescue Blog</h1>
-             <p style={{ color: 'var(--gray)', fontSize: '1.2rem' }}>Stories, tips, and news from the animal rescue community.</p>
+    <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh" }}>
+      <Navbar />
+      <div style={{ padding: "4rem 2rem" }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div
+            className="text-center mb-16"
+            style={{ textAlign: "center", marginBottom: "3rem" }}
+          >
+            <h1
+              style={{
+                fontSize: "3.5rem",
+                fontWeight: 800,
+                marginBottom: "1rem",
+                color: "var(--dark)",
+                background: "linear-gradient(135deg, #1e293b 0%, #3b82f6 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}
+            >
+              Cộng Đồng Cứu Hộ
+            </h1>
+            <p
+              style={{
+                color: "#64748b",
+                fontSize: "1.2rem",
+                maxWidth: "700px",
+                margin: "0 auto",
+              }}
+            >
+              Những câu chuyện cảm động, kinh nghiệm chăm sóc và tin tức mới
+              nhất từ hệ thống trạm cứu hộ PetRescue.
+            </p>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-2">
-             {BLOG_POSTS.map(post => (
-               <article key={post.id} className="card p-0 overflow-hidden hover:shadow-xl transition-shadow flex flex-col h-full">
-                  <div style={{ height: '240px', overflow: 'hidden' }}>
-                     <img src={post.image} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.5s' }} className="hover:scale-105" />
-                  </div>
-                  <div className="p-6 flex flex-col flex-1">
-                     <div className="flex items-center gap-4 text-xs text-gray-500 mb-3 uppercase tracking-wider font-bold">
-                        <span style={{ color: 'var(--primary)' }}>{post.category}</span>
-                        <span>•</span>
-                        <div className="flex items-center gap-1"><Calendar size={12} /> {post.date}</div>
-                     </div>
-                     <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', lineHeight: '1.3' }}>
-                        <Link to={`/blog/${post.id}`} style={{ color: 'inherit', textDecoration: 'none' }} className="hover:text-primary">
-                          {post.title}
-                        </Link>
-                     </h2>
-                     <p style={{ color: 'var(--gray)', marginBottom: '1.5rem', flex: 1 }}>{post.excerpt}</p>
-                     
-                     <div className="flex justify-between items-center pt-4 border-t border-gray-100 mt-auto">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500"><User size={16} /></div>
-                           {post.author}
+          {loading ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                padding: "4rem 0",
+              }}
+            >
+              <Loader2
+                size={48}
+                className="animate-spin"
+                color="var(--primary)"
+              />
+            </div>
+          ) : error ? (
+            <div
+              style={{
+                background: "#fee2e2",
+                color: "#dc2626",
+                padding: "2rem",
+                borderRadius: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                justifyContent: "center",
+              }}
+            >
+              <AlertCircle size={24} /> {error}
+            </div>
+          ) : posts.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "4rem 0",
+                color: "#94a3b8",
+              }}
+            >
+              Hiện chưa có bài viết nào được xuất bản.
+            </div>
+          ) : (
+            <>
+              <div
+                className="grid gap-8 md:grid-cols-2 lg:grid-cols-3"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
+                  gap: "2rem",
+                }}
+              >
+                {posts.map((post) => (
+                  <article
+                    key={post.postID || post.id}
+                    className="group"
+                    style={{
+                      background: "white",
+                      borderRadius: "24px",
+                      overflow: "hidden",
+                      transition: "all 0.3s ease",
+                      boxShadow:
+                        "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+                      display: "flex",
+                      flexDirection: "column",
+                      height: "100%",
+                      border: "1px solid #f1f5f9",
+                    }}
+                  >
+                    <Link
+                      to={`/blog/${post.postID || post.id}`}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <div
+                        style={{
+                          height: "240px",
+                          overflow: "hidden",
+                          position: "relative",
+                        }}
+                      >
+                        <img
+                          src={getDisplayImage(post)}
+                          alt={post.title}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            transition: "transform 0.5s ease",
+                          }}
+                          onMouseOver={(e) =>
+                            (e.currentTarget.style.transform = "scale(1.1)")
+                          }
+                          onMouseOut={(e) =>
+                            (e.currentTarget.style.transform = "scale(1)")
+                          }
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "16px",
+                            left: "16px",
+                            background: "var(--primary)",
+                            color: "white",
+                            padding: "4px 12px",
+                            borderRadius: "8px",
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {post.postType || "Cảm hứng"}
                         </div>
-                        <Link to={`/blog/${post.id}`} style={{ color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                           Read More <ArrowRight size={16} />
-                        </Link>
-                     </div>
-                  </div>
-               </article>
-             ))}
-          </div>
+                      </div>
+                      <div
+                        className="p-6"
+                        style={{
+                          padding: "1.5rem",
+                          flex: 1,
+                          display: "flex",
+                          flexDirection: "column",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.5rem",
+                            fontSize: "0.85rem",
+                            color: "#94a3b8",
+                            marginBottom: "1rem",
+                          }}
+                        >
+                          <Calendar size={14} />{" "}
+                          {formatPostDate(post.createdAt)}
+                        </div>
+                        <h2
+                          style={{
+                            fontSize: "1.35rem",
+                            fontWeight: 700,
+                            marginBottom: "1rem",
+                            lineHeight: "1.4",
+                            color: "#1e293b",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {post.title}
+                        </h2>
+                        <p
+                          style={{
+                            color: "#64748b",
+                            marginBottom: "1.5rem",
+                            lineHeight: "1.6",
+                            fontSize: "0.95rem",
+                            flex: 1,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {post.excerpt || stripHtml(post.content)}
+                        </p>
 
-       </div>
-       </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            paddingTop: "1.5rem",
+                            borderTop: "1px solid #f1f5f9",
+                            marginTop: "auto",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.75rem",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                borderRadius: "10px",
+                                background: "#f1f5f9",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#64748b",
+                              }}
+                            >
+                              <User size={16} />
+                            </div>
+                            <span
+                              style={{
+                                fontSize: "0.9rem",
+                                fontWeight: 600,
+                                color: "#475569",
+                              }}
+                            >
+                              {post.authorName || "Quản trị viên"}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              color: "var(--primary)",
+                              fontWeight: 700,
+                              fontSize: "0.9rem",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "4px",
+                            }}
+                          >
+                            Xem thêm <ArrowRight size={16} />
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+                  </article>
+                ))}
+              </div>
+
+              {totalPages > 1 && (
+                <div style={{ marginTop: "4rem" }}>
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      <Footer />
     </div>
   );
 };

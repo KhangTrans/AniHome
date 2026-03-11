@@ -23,3 +23,6 @@ export * from './adoptionService';
 
 // Donation APIs (POST create payment, handle VNPay callback)
 export * from './donationService';
+
+// Surrender / Rescue Request API
+export * from './surrenderService';

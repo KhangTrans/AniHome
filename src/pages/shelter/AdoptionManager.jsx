@@ -275,11 +275,12 @@ const AdoptionManager = () => {
         <Table
           columns={columns}
           dataSource={adoptions}
-          rowKey={(record) =>
+          rowKey={(record, index) =>
             record.adoptionRequestID ||
             record.id ||
             record.adoptionID ||
-            record.requestID
+            record.requestID ||
+            `adoption-${index}`
           }
           loading={loading}
           pagination={{ pageSize: 10 }}

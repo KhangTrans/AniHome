@@ -6,16 +6,13 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 // Tạo axios instance
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Request Interceptor - Tự động thêm accessToken vào mọi request
 axiosInstance.interceptors.request.use(
   (config) => {
     const accessToken = localStorage.getItem('accessToken');
-    if (accessToken) {
+    if (accessToken && accessToken !== 'undefined' && accessToken !== 'null') {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
@@ -33,7 +30,19 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Nếu lỗi 401 và chưa retry
+    // Nếu lỗi 403 (Forbidden): User không có quyền truy cập
+    if (error.response?.status === 403) {
+      console.warn('[Axios Interceptor] 403 Forbidden: Missing permissions.');
+      // Import and use toast if possible, or use window alert as fallback
+      if (window.toast) {
+        window.toast.error("Bạn không có quyền truy cập vào chức năng này.");
+      } else {
+        alert("Bạn không có quyền truy cập.");
+      }
+      return Promise.reject(error);
+    }
+
+    // Nếu lỗi 401 (Unauthorized) và chưa retry
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -41,10 +50,11 @@ axiosInstance.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken');
         
         if (!refreshToken || refreshToken === 'undefined') {
-          // Không có refresh token, redirect to login
-          localStorage.clear();
+          console.warn('[Axios Interceptor] 401 Unauthorized! Missing refresh token. Redirecting to login...');
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
           window.location.href = '/login';
-          console.error('[Axios Interceptor] Missing refresh token. Cannot refresh.');
           return Promise.reject(error);
         }
 
@@ -53,7 +63,11 @@ axiosInstance.interceptors.response.use(
           refreshToken,
         });
 
-        const { accessToken: newAccessToken } = response.data;
+        const newAccessToken = response.data.accessToken || response.data.AccessToken;
+
+        if (!newAccessToken) {
+          throw new Error('No access token returned from refresh');
+        }
 
         // Lưu token mới
         localStorage.setItem('accessToken', newAccessToken);
@@ -62,9 +76,10 @@ axiosInstance.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
         return axiosInstance(originalRequest);
       } catch (refreshError) {
-        // Refresh token thất bại, logout
         console.error('[Axios Interceptor] Refresh token failed:', refreshError);
-        localStorage.clear();
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
         window.location.href = '/login';
         return Promise.reject(refreshError);
       }

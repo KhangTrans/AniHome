@@ -51,11 +51,11 @@ export const getPendingPosts = async (params = {}) => {
 export const reviewPost = async (postId, reviewData) => {
   try {
     const response = await axiosInstance.patch(`/admin/moderation/posts/${postId}/review`, {
-      action: reviewData.action,
-      reason: reviewData.reason || '',
+      isApproved: reviewData.isApproved,
+      note: reviewData.note || '',
     });
     
-    const message = reviewData.action === 'approve' 
+    const message = reviewData.isApproved 
       ? 'Đã duyệt bài viết!' 
       : 'Đã từ chối bài viết!';
     
