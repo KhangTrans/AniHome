@@ -9,6 +9,10 @@ import ContentModerator from "./moderation/ContentModerator";
 import ReportManager from "./moderation/ReportManager";
 import CategoryEditor from "./categories";
 import UserManager from "./users";
+import AdminProfile from "./profile";
+import AdminPetManagement from "./pets";
+import AdminPetDetail from "./pets/AdminPetDetail";
+import AdminDonationHistory from "./donations";
 import {
   LayoutDashboard,
   Home,
@@ -16,6 +20,9 @@ import {
   AlertTriangle,
   Layers,
   Users,
+  User,
+  PawPrint,
+  CreditCard,
   Menu,
 } from "lucide-react";
 
@@ -50,6 +57,16 @@ const SuperAdminDashboard = () => {
       icon: <Home size={20} />,
     },
     {
+      label: "Quản Lý Thú Cưng",
+      path: "/admin/pets",
+      icon: <PawPrint size={20} />,
+    },
+    {
+      label: "Lịch Sử Quyên Góp",
+      path: "/admin/donations",
+      icon: <CreditCard size={20} />,
+    },
+    {
       label: "Kiểm Duyệt Nội Dung",
       path: "/admin/content",
       icon: <FileText size={20} />,
@@ -68,6 +85,11 @@ const SuperAdminDashboard = () => {
       label: "Danh Mục",
       path: "/admin/categories",
       icon: <Layers size={20} />,
+    },
+    {
+      label: "Hồ Sơ Admin",
+      path: "/admin/profile",
+      icon: <User size={20} />,
     },
   ];
 
@@ -145,10 +167,14 @@ const SuperAdminDashboard = () => {
           <Routes>
             <Route path="/" element={<AdminOverview />} />
             <Route path="/shelters" element={<ShelterManager />} />
+            <Route path="/pets" element={<AdminPetManagement />} />
+            <Route path="/pets/:id" element={<AdminPetDetail />} />
+            <Route path="/donations" element={<AdminDonationHistory />} />
             <Route path="/content" element={<ContentModerator />} />
             <Route path="/reports" element={<ReportManager />} />
             <Route path="/users" element={<UserManager />} />
             <Route path="/categories" element={<CategoryEditor />} />
+            <Route path="/profile" element={<AdminProfile />} />
           </Routes>
         </Content>
       </Layout>

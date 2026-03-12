@@ -146,6 +146,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Cập nhật thông tin user trong local state và localStorage
+   * @param {Object} updatedFields - Các trường thông tin mới
+   */
+  const updateUser = (updatedFields) => {
+    if (!user) return;
+    
+    const newUser = { ...user, ...updatedFields };
+    setUser(newUser);
+    
+    // Đồng bộ với localStorage
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    if (storedUser) {
+      const freshUser = { ...storedUser, ...updatedFields };
+      localStorage.setItem("user", JSON.stringify(freshUser));
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -154,6 +172,7 @@ export const AuthProvider = ({ children }) => {
         logout,
         register,
         loginWithGoogle,
+        updateUser,
         loading,
         isAuthenticated: !!user,
       }}

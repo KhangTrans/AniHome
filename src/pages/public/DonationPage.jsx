@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useToast } from "../../context/ToastContext";
 import {
   createVNPayDonation,
@@ -10,6 +10,8 @@ import {
   parseCurrencyInput,
   getDonationImpactMessage,
 } from "../../services/public/donationService";
+import { getPetById } from "../../services/public/petsService";
+import { getShelterById } from "../../services/public/sheltersService";
 import {
   Heart,
   CreditCard,
@@ -20,45 +22,68 @@ import {
   Copy,
   CheckCircle2,
   ArrowRight,
+  ShieldCheck,
+  Zap,
+  Clock,
+  ExternalLink,
+  ChevronLeft
 } from "lucide-react";
-import { Modal, Spin } from "antd";
-import { useNavigate } from "react-router-dom";
+import { Modal, Spin, Typography, Space, Divider, Tag, Button } from "antd";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 
+const { Title: AntTitle, Text } = Typography;
+
 /**
- * DONATION PAGE
- * Trang quyên góp với VNPay payment
+ * TRANG QUYÊN GÓP (DONATION PAGE)
+ * Hỗ trợ Quyên góp qua VNPay và VietQR (Quét mã tự động)
  */
 export default function DonationPage() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // URL Params
+  const petID = searchParams.get("petID");
+  const shelterID = searchParams.get("shelterID");
+
   const [formData, setFormData] = useState({
     amount: "",
     donorName: "",
     donorEmail: "",
     donorPhone: "",
     message: "",
+    petID: petID || null,
+    shelterID: shelterID || null,
   });
 
+  const [targetInfo, setTargetInfo] = useState(null);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [customAmount, setCustomAmount] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState("vnpay"); // 'vnpay' or 'vietqr'
+  const [paymentMethod, setPaymentMethod] = useState("vietqr"); // Default to vietqr as requested
 
   // VietQR Modal States
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [polling, setPolling] = useState(false);
   const pollingIntervalRef = useRef(null);
-  const navigate = useNavigate();
-  // The following block was incorrectly placed and is removed as per the instruction's implied correction.
-  // const pollingRef = (function () {
-  //   try {
-  //     return require("react").useRef(null);
-  //   } catch (e) {
-  //     return { current: null };
-  //   }
-  // })();
+  const pollingTimeoutRef = useRef(null);
+
+  // Fetch target info (Pet or Shelter)
+  useEffect(() => {
+    const fetchTargetInfo = async () => {
+      if (petID) {
+        const result = await getPetById(petID);
+        if (result.success) setTargetInfo({ type: 'pet', name: result.data.petName, image: result.data.imageURL });
+      } else if (shelterID) {
+        const result = await getShelterById(shelterID);
+        if (result.success) setTargetInfo({ type: 'shelter', name: result.data.shelterName, image: result.data.imageURL });
+      }
+    };
+    fetchTargetInfo();
+  }, [petID, shelterID]);
 
   const handlePresetAmount = (amount) => {
     setFormData((prev) => ({ ...prev, amount }));
@@ -91,76 +116,73 @@ export default function DonationPage() {
     const validation = validateDonationForm(formData);
     if (!validation.isValid) {
       setErrors(validation.errors);
+      toast.error("Vui lòng kiểm tra lại thông tin quyên góp");
       return;
     }
 
     setLoading(true);
 
     if (paymentMethod === "vnpay") {
-      // Create VNPay payment
       const result = await createVNPayDonation(formData);
       setLoading(false);
-
       if (result.success) {
         window.location.href = result.data.paymentUrl;
       } else {
-        toast.error(
-          result.error || "Failed to create payment. Please try again.",
-        );
+        toast.error(result.error || "Không thể tạo liên kết thanh toán. Vui lòng thử lại.");
       }
     } else {
-      // Create VietQR payment
       const result = await createVietQRDonation(formData);
       setLoading(false);
 
       if (result.success) {
-        console.log("💰 VietQR Data Received:", result.data);
         setQrData(result.data);
         setQrModalVisible(true);
         startPolling(result.data.transactionID || result.data.TransactionID);
       } else {
-        toast.error(
-          result.error || "Failed to create QR code. Please try again.",
-        );
+        toast.error(result.error || "Không thể tạo mã QR. Vui lòng thử lại.");
       }
     }
   };
 
   // Polling logic for VietQR
-  const startPolling = (transactionID) => {
-    // Clear any previous interval to prevent leaks
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
+  const startPolling = useCallback((transactionID) => {
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current);
 
     setPolling(true);
     const interval = setInterval(async () => {
       const result = await checkVietQRStatus(transactionID);
       if (result.success && result.data?.status === "Success") {
         clearInterval(interval);
+        clearTimeout(pollingTimeoutRef.current);
         pollingIntervalRef.current = null;
         setPolling(false);
         setQrModalVisible(false);
         toast.success("Thanh toán thành công! Cảm ơn bạn đã quyên góp.");
         navigate("/donation/success");
       }
-    }, 10000); // 10 seconds
+    }, 5000); // Polling every 5s for better UX
 
     pollingIntervalRef.current = interval;
 
-    // Stop polling after 10 minutes
-    setTimeout(() => {
-      if (pollingIntervalRef.current === interval) {
-        clearInterval(interval);
-        pollingIntervalRef.current = null;
-        setPolling(false);
-      }
-    }, 600000);
-  };
+    // Timeout after 15 minutes
+    pollingTimeoutRef.current = setTimeout(() => {
+      clearInterval(pollingIntervalRef.current);
+      setPolling(false);
+      toast.warning("Hết thời gian chờ giao dịch. Nếu bạn đã chuyển khoản, hãy liên hệ admin.");
+    }, 900000);
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      if (pollingTimeoutRef.current) clearTimeout(pollingTimeoutRef.current);
+    };
+  }, []);
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    toast.success("Đã sao chép nội dung chuyển khoản");
+    toast.success("Đã sao chép vào bộ nhớ tạm");
   };
 
   return (
@@ -169,586 +191,377 @@ export default function DonationPage() {
       <div
         style={{
           minHeight: "100vh",
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          padding: "60px 20px",
+          background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+          padding: "80px 20px",
         }}
       >
-        <div style={{ maxWidth: "700px", margin: "0 auto" }}>
-          {/* Header */}
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "40px",
-              color: "white",
-            }}
-          >
-            <div style={{ fontSize: "4rem", marginBottom: "20px" }}>💰</div>
-            <h1 style={{ fontSize: "2.5rem", marginBottom: "15px" }}>
-              Make a Donation
+        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+          {/* Header section */}
+          <div style={{ textAlign: "center", marginBottom: "40px", color: "white" }}>
+            <div style={{ 
+              width: "80px", 
+              height: "80px", 
+              background: "rgba(255,255,255,0.2)", 
+              borderRadius: "50%", 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "center",
+              margin: "0 auto 20px"
+            }}>
+              <Heart size={40} fill="white" color="white" />
+            </div>
+            <h1 style={{ fontSize: "2.5rem", fontWeight: "800", marginBottom: "10px", letterSpacing: "-0.5px" }}>
+              Tiếp Sức Cho Những Ước Mơ
             </h1>
-            <p style={{ fontSize: "1.1rem", opacity: 0.9 }}>
-              Help us rescue and care for animals in need
+            <p style={{ fontSize: "1.2rem", opacity: 0.9, maxWidth: "600px", margin: "0 auto" }}>
+              Mỗi đóng góp của bạn, dù nhỏ nhất, cũng mang lại cơ hội sống và mái ấm mới cho các bé thú cưng.
             </p>
           </div>
 
-          {/* Form Card */}
-          <div
-            style={{
-              background: "white",
-              borderRadius: "20px",
-              padding: "40px",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <form onSubmit={handleSubmit}>
-              {/* Amount Selection */}
-              <div style={{ marginBottom: "30px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    marginBottom: "15px",
-                  }}
-                >
-                  Select Amount
-                </label>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: "10px",
-                    marginBottom: "15px",
-                  }}
-                >
-                  {DONATION_PRESETS.map((preset) => (
-                    <button
-                      key={preset.value}
-                      type="button"
-                      onClick={() => handlePresetAmount(preset.value)}
-                      style={{
-                        padding: "16px",
-                        border:
-                          formData.amount === preset.value && !customAmount
-                            ? "2px solid #3b82f6"
-                            : "2px solid #e5e7eb",
-                        background:
-                          formData.amount === preset.value && !customAmount
-                            ? "#dbeafe"
-                            : "white",
-                        borderRadius: "12px",
-                        fontSize: "1rem",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+          <div style={{ 
+            background: "white", 
+            borderRadius: "24px", 
+            overflow: "hidden", 
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" 
+          }}>
+            {/* Target Display if applicable */}
+            {targetInfo && (
+              <div style={{ 
+                background: "#f8fafc", 
+                padding: "20px 40px", 
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                alignItems: "center",
+                gap: "15px"
+              }}>
+                <div style={{ 
+                  width: "60px", 
+                  height: "60px", 
+                  borderRadius: "15px", 
+                  overflow: "hidden", 
+                  border: "2px solid white",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+                }}>
+                  <img src={targetInfo.image} alt={targetInfo.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 </div>
-
-                {/* Custom Amount */}
                 <div>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginBottom: "8px",
-                      fontSize: "0.9rem",
-                      color: "#666",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={customAmount}
-                      onChange={(e) => setCustomAmount(e.target.checked)}
-                    />
-                    Custom Amount
-                  </label>
-
-                  {customAmount && (
-                    <input
-                      type="text"
-                      value={
-                        formData.amount
-                          ? formatCurrencyVND(formData.amount)
-                          : ""
-                      }
-                      onChange={handleCustomAmountChange}
-                      placeholder="Enter custom amount..."
-                      style={{
-                        width: "100%",
-                        padding: "14px",
-                        border: errors.amount
-                          ? "2px solid #ef4444"
-                          : "2px solid #e5e7eb",
-                        borderRadius: "12px",
-                        fontSize: "1rem",
-                      }}
-                    />
-                  )}
+                  <Text type="secondary" style={{ fontSize: "0.85rem", textTransform: "uppercase", fontWeight: "700", letterSpacing: "0.5px" }}>
+                    Bạn đang quyên góp cho:
+                  </Text>
+                  <AntTitle level={4} style={{ margin: 0, color: "#1e293b" }}>{targetInfo.name}</AntTitle>
                 </div>
+              </div>
+            )}
 
-                {errors.amount && (
-                  <p
-                    style={{
-                      color: "#ef4444",
-                      fontSize: "0.9rem",
-                      marginTop: "8px",
-                    }}
-                  >
-                    {errors.amount}
-                  </p>
-                )}
-
-                {/* Impact Message */}
-                {formData.amount && (
-                  <div
-                    style={{
-                      marginTop: "15px",
-                      padding: "12px",
-                      background: "#f0fdf4",
-                      borderRadius: "8px",
-                      color: "#15803d",
-                      fontSize: "0.95rem",
-                      textAlign: "center",
-                      fontWeight: "500",
-                    }}
-                  >
-                    {getDonationImpactMessage(formData.amount)}
+            <form onSubmit={handleSubmit} style={{ padding: "40px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px" }}>
+                {/* Left Side: Amount and Info */}
+                <div>
+                  <SectionTitle icon={<Zap size={20} color="#f59e0b" />} title="Số tiền quyên góp" />
+                  
+                  <div style={{ 
+                    display: "grid", 
+                    gridTemplateColumns: "1fr 1fr", 
+                    gap: "10px", 
+                    marginBottom: "15px" 
+                  }}>
+                    {DONATION_PRESETS.map((preset) => (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() => handlePresetAmount(preset.value)}
+                        style={{
+                          padding: "14px",
+                          border: formData.amount === preset.value && !customAmount ? "2.5px solid #4f46e5" : "2px solid #e2e8f0",
+                          background: formData.amount === preset.value && !customAmount ? "#eef2ff" : "white",
+                          color: formData.amount === preset.value && !customAmount ? "#4f46e5" : "#64748b",
+                          borderRadius: "14px",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
 
-              {/* Payment Method Selection */}
-              <div style={{ marginBottom: "30px" }}>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    marginBottom: "15px",
-                  }}
-                >
-                  Payment Method
-                </label>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "15px",
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("vnpay")}
-                    style={{
-                      padding: "16px",
-                      border:
-                        paymentMethod === "vnpay"
-                          ? "2px solid #3b82f6"
-                          : "2px solid #e5e7eb",
-                      background:
-                        paymentMethod === "vnpay" ? "#eff6ff" : "white",
-                      borderRadius: "12px",
+                  <div style={{ marginBottom: "25px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                      <input 
+                        type="checkbox" 
+                        id="custom-check"
+                        checked={customAmount} 
+                        onChange={(e) => setCustomAmount(e.target.checked)} 
+                        style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                      />
+                      <label htmlFor="custom-check" style={{ fontWeight: "600", fontSize: "0.95rem", color: "#475569", cursor: "pointer" }}>Nhập số tiền khác</label>
+                    </div>
+
+                    {customAmount && (
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="text"
+                          value={formData.amount ? formatCurrencyVND(formData.amount) : ""}
+                          onChange={handleCustomAmountChange}
+                          placeholder="Ví dụ: 1,000,000"
+                          style={{
+                            width: "100%",
+                            padding: "14px 45px 14px 18px",
+                            border: errors.amount ? "2px solid #ef4444" : "2px solid #e2e8f0",
+                            borderRadius: "14px",
+                            fontSize: "1.1rem",
+                            fontWeight: "600",
+                            outline: "none",
+                            transition: "border-color 0.2s",
+                          }}
+                        />
+                        <span style={{ position: "absolute", right: "18px", top: "50%", transform: "translateY(-50%)", fontWeight: "700", color: "#94a3b8" }}>VNĐ</span>
+                      </div>
+                    )}
+                    {errors.amount && <p style={{ color: "#ef4444", fontSize: "0.85rem", marginTop: "8px", fontWeight: "500" }}>{errors.amount}</p>}
+                  </div>
+
+                  {formData.amount > 0 && (
+                    <div style={{ 
+                      padding: "16px", 
+                      background: "#f0fdf4", 
+                      borderRadius: "14px", 
+                      border: "1px solid #bbf7d0",
+                      color: "#166534",
                       display: "flex",
-                      flexDirection: "column",
                       alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer",
-                      transition: "0.2s",
-                    }}
-                  >
-                    <CreditCard
-                      color={paymentMethod === "vnpay" ? "#3b82f6" : "#6b7280"}
-                      size={24}
-                    />
-                    <span
-                      style={{
-                        fontWeight: "500",
-                        color:
-                          paymentMethod === "vnpay" ? "#1e40af" : "#4b5563",
-                      }}
-                    >
-                      VNPay
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod("vietqr")}
+                      gap: "10px",
+                      marginBottom: "30px",
+                      fontSize: "0.95rem"
+                    }}>
+                      <div style={{ background: "#4ade80", padding: "6px", borderRadius: "50%" }}><CheckCircle2 size={16} color="white" /></div>
+                      <span style={{ fontWeight: "600" }}>{getDonationImpactMessage(formData.amount)}</span>
+                    </div>
+                  )}
+
+                  <SectionTitle icon={<User size={20} color="#4f46e5" />} title="Thông tin người gửi" />
+                  <InputField icon={<User size={18} />} name="donorName" value={formData.donorName} onChange={handleInputChange} placeholder="Họ và tên của bạn *" error={errors.donorName} />
+                  <InputField icon={<Mail size={18} />} name="donorEmail" value={formData.donorEmail} onChange={handleInputChange} placeholder="Địa chỉ Email *" error={errors.donorEmail} />
+                  <InputField icon={<Phone size={18} />} name="donorPhone" value={formData.donorPhone} onChange={handleInputChange} placeholder="Số điện thoại (tùy chọn)" />
+                </div>
+
+                {/* Right Side: Message and Payment */}
+                <div>
+                  <SectionTitle icon={<Mail size={20} color="#7c3aed" />} title="Lời tâm tình gửi gắm" />
+                  <textarea
+                    name="message"
+                    value={formData.message}
+                    onChange={handleInputChange}
+                    placeholder="Gửi gắm lời chúc hoặc yêu cầu của bạn đến các bé thú cưng và trạm cứu hộ..."
+                    rows={6}
                     style={{
+                      width: "100%",
                       padding: "16px",
-                      border:
-                        paymentMethod === "vietqr"
-                          ? "2px solid #3b82f6"
-                          : "2px solid #e5e7eb",
-                      background:
-                        paymentMethod === "vietqr" ? "#eff6ff" : "white",
-                      borderRadius: "12px",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "8px",
-                      cursor: "pointer",
-                      transition: "0.2s",
+                      border: "2px solid #e2e8f0",
+                      borderRadius: "18px",
+                      fontSize: "1rem",
+                      resize: "none",
+                      marginBottom: "30px",
+                      outline: "none",
+                      transition: "border-color 0.2s",
                     }}
-                  >
-                    <QrCode
-                      color={paymentMethod === "vietqr" ? "#3b82f6" : "#6b7280"}
-                      size={24}
+                  />
+
+                  <SectionTitle icon={<CreditCard size={20} color="#ec4899" />} title="Phương thức thanh toán" />
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "35px" }}>
+                    <PaymentMethodCard 
+                      id="vietqr" 
+                      selected={paymentMethod === "vietqr"} 
+                      onClick={() => setPaymentMethod("vietqr")}
+                      icon={<QrCode size={24} />}
+                      title="VietQR (Chuyển khoản tự động)"
+                      desc="Hệ thống xác nhận ngay sau 1-5s"
+                      badge="Khuyên dùng"
                     />
-                    <span
-                      style={{
-                        fontWeight: "500",
-                        color:
-                          paymentMethod === "vietqr" ? "#1e40af" : "#4b5563",
-                      }}
-                    >
-                      VietQR (Casso)
-                    </span>
+                    <PaymentMethodCard 
+                      id="vnpay" 
+                      selected={paymentMethod === "vnpay"} 
+                      onClick={() => setPaymentMethod("vnpay")}
+                      icon={<ShieldCheck size={24} />}
+                      title="Ví VNPay / Thẻ ATM"
+                      desc="Thanh toán qua cổng VNPay"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    style={{
+                      width: "100%",
+                      padding: "20px",
+                      background: loading ? "#94a3b8" : "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "18px",
+                      fontSize: "1.2rem",
+                      fontWeight: "800",
+                      cursor: loading ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "12px",
+                      boxShadow: "0 10px 15px -3px rgba(79, 70, 229, 0.4)",
+                      transition: "transform 0.2s",
+                    }}
+                    onMouseEnter={e => !loading && (e.currentTarget.style.transform = "translateY(-2px)")}
+                    onMouseLeave={e => !loading && (e.currentTarget.style.transform = "translateY(0)")}
+                  >
+                    {loading ? <Spin size="small" /> : <><Heart size={22} fill="white" /> Gửi Quyên Góp Ngay</>}
                   </button>
                 </div>
               </div>
-
-              {/* Donor Information */}
-              <div style={{ marginBottom: "25px" }}>
-                <h3
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    marginBottom: "15px",
-                  }}
-                >
-                  Your Information
-                </h3>
-
-                <InputField
-                  icon={<User size={20} />}
-                  name="donorName"
-                  value={formData.donorName}
-                  onChange={handleInputChange}
-                  placeholder="Full Name *"
-                  error={errors.donorName}
-                />
-
-                <InputField
-                  icon={<Mail size={20} />}
-                  name="donorEmail"
-                  type="email"
-                  value={formData.donorEmail}
-                  onChange={handleInputChange}
-                  placeholder="Email Address *"
-                  error={errors.donorEmail}
-                />
-
-                <InputField
-                  icon={<Phone size={20} />}
-                  name="donorPhone"
-                  value={formData.donorPhone}
-                  onChange={handleInputChange}
-                  placeholder="Phone Number (optional)"
-                  error={errors.donorPhone}
-                />
-
-                <textarea
-                  name="message"
-                  value={formData.message}
-                  onChange={handleInputChange}
-                  placeholder="Leave a message (optional)"
-                  rows={4}
-                  style={{
-                    width: "100%",
-                    padding: "14px",
-                    border: "2px solid #e5e7eb",
-                    borderRadius: "12px",
-                    fontSize: "1rem",
-                    fontFamily: "inherit",
-                    resize: "vertical",
-                  }}
-                />
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "18px",
-                  background: loading
-                    ? "#9ca3af"
-                    : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "12px",
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "10px",
-                }}
-              >
-                {loading ? (
-                  "Processing..."
-                ) : (
-                  <>
-                    <CreditCard size={22} />
-                    Proceed to Payment
-                  </>
-                )}
-              </button>
             </form>
 
-            {/* Security Note */}
-            <div
-              style={{
-                marginTop: "25px",
-                padding: "15px",
-                background: "#f3f4f6",
-                borderRadius: "12px",
-                fontSize: "0.85rem",
-                color: "#666",
-                textAlign: "center",
-              }}
-            >
-              🔒 Secure payment powerd by Cassos & VNPay
+            <div style={{ padding: "20px", background: "#f1f5f9", textAlign: "center", borderTop: "1px solid #e2e8f0" }}>
+              <Space split={<Divider type="vertical" />}>
+                <Text type="secondary"><ShieldCheck size={14} style={{ marginRight: 4 }} /> Bảo mật tuyệt đối</Text>
+                <Text type="secondary"><CheckCircle2 size={14} style={{ marginRight: 4 }} /> Minh bạch 100%</Text>
+                <Text type="secondary"><Zap size={14} style={{ marginRight: 4 }} /> Xử lý tự động</Text>
+              </Space>
             </div>
+          </div>
+          
+          <div style={{ textAlign: "center", marginTop: "40px" }}>
+            <Link to="/pets" style={{ color: "white", textDecoration: "none", opacity: 0.8, display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <ChevronLeft size={20} /> Quay lại danh sách thú cưng
+            </Link>
           </div>
         </div>
 
-        {/* VietQR Modal */}
+        {/* Improved VietQR Modal */}
         <Modal
           title={null}
           open={qrModalVisible}
           onCancel={() => setQrModalVisible(false)}
           footer={null}
-          width={450}
+          width={480}
           centered
-          styles={{ body: { padding: "24px" } }}
+          styles={{ body: { padding: 0, overflow: "hidden", borderRadius: "24px" } }}
         >
-          <div style={{ textAlign: "center" }}>
-            <h2
-              style={{
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-                marginBottom: "8px",
-                color: "#1f2937",
-              }}
-            >
-              Quét mã để ủng hộ
-            </h2>
-            <p style={{ color: "#6b7280", marginBottom: "24px" }}>
-              Sử dụng ứng dụng ngân hàng hoặc ví điện tử để quét mã
+          <div style={{ padding: "32px", textAlign: "center" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+              <div style={{ 
+                padding: "10px 16px", 
+                background: "#f0f9ff", 
+                borderRadius: "30px", 
+                border: "1px solid #bae6fd",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "#0369a1",
+                fontSize: "0.85rem",
+                fontWeight: "700"
+              }}>
+                <Zap size={14} fill="#0369a1" /> XỬ LÝ TỰ ĐỘNG QUA CASSO
+              </div>
+            </div>
+
+            <AntTitle level={3} style={{ marginBottom: "8px" }}>Quét Mã Chuyển Khoản</AntTitle>
+            <p style={{ color: "#64748b", fontSize: "0.95rem", marginBottom: "24px" }}>
+              Hệ thống sẽ tự nhận diện giao dịch của bạn ngay lập tức
             </p>
 
-            <div
-              style={{
-                background: "white",
-                padding: "16px",
-                borderRadius: "16px",
-                boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                marginBottom: "24px",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  background: "white",
-                  padding: "1rem",
-                  borderRadius: "1rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                {qrData?.qrImageUrl || qrData?.QrImageUrl ? (
-                  <img
-                    src={qrData.qrImageUrl || qrData.QrImageUrl}
-                    alt="QR"
-                    referrerPolicy="no-referrer"
-                    style={{ width: "100%", display: "block" }}
-                    onError={(e) => {
-                      e.target.style.display = "none";
-                      const manualDiv = document.getElementById(
-                        "manual-payment-shelter",
-                      );
-                      if (manualDiv) manualDiv.style.display = "block";
-                    }}
-                  />
-                ) : (
-                  <Spin size="large" />
-                )}
+            <div style={{ 
+              background: "white", 
+              padding: "15px", 
+              borderRadius: "24px", 
+              boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+              border: "1px solid #f1f5f9",
+              marginBottom: "24px",
+              position: "relative"
+            }}>
+              {qrData?.qrImageUrl || qrData?.QrImageUrl ? (
+                <div style={{ position: "relative" }}>
+                   <img src={qrData.qrImageUrl || qrData.QrImageUrl} alt="VietQR" style={{ width: "100%", height: "auto", display: "block", borderRadius: "12px" }} />
+                   {/* Logo overlay or scanning line animation could go here */}
+                </div>
+              ) : (
+                <div style={{ height: "300px", display: "flex", alignItems: "center", justifyContent: "center" }}><Spin size="large" /></div>
+              )}
+            </div>
 
-                <div
-                  id="manual-payment-shelter"
-                  style={{
-                    display:
-                      qrData?.qrImageUrl || qrData?.QrImageUrl
-                        ? "none"
-                        : "block",
-                    textAlign: "left",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  <p style={{ color: "#ef4444", fontWeight: "bold" }}>
-                    ⚠️ Lỗi tải QR - Chuyển khoản thủ công:
-                  </p>
-                  <div
-                    style={{
-                      background: "#f8fafc",
-                      padding: "1rem",
-                      borderRadius: "1rem",
-                      border: "1px dashed #cbd5e1",
-                    }}
-                  >
-                    <p
-                      style={{
-                        color: "#ef4444",
-                        fontWeight: "600",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      ⚠️ Không thể hiển thị QR
-                    </p>
-                    <p style={{ fontSize: "0.9rem", marginBottom: "4px" }}>
-                      Ngân hàng: <strong>MB Bank</strong>
-                    </p>
-                    <p style={{ fontSize: "0.9rem", marginBottom: "4px" }}>
-                      STK: <strong>130072004</strong>
-                    </p>
-                    <p style={{ fontSize: "0.9rem", marginBottom: "4px" }}>
-                      Chủ TK: <strong>NGUYEN HOANG SANG</strong>
-                    </p>
-                    <p style={{ fontSize: "0.9rem", marginBottom: "12px" }}>
-                      Số tiền:{" "}
-                      <strong>{formData.amount.toLocaleString()} VNĐ</strong>
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        window.open(
-                          qrData?.qrImageUrl || qrData?.QrImageUrl,
-                          "_blank",
-                        )
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem",
-                        background: "#3b82f6",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "0.5rem",
-                        cursor: "pointer",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      Mở Mã QR Tab Mới ↗
-                    </button>
-                  </div>
+            <div style={{ 
+              background: "#f8fafc", 
+              padding: "16px", 
+              borderRadius: "20px", 
+              marginBottom: "24px",
+              textAlign: "left",
+              border: "1px solid #e2e8f0"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
+                <div>
+                  <Text type="secondary" style={{ fontSize: "0.75rem", fontWeight: "700" }}>SỐ TIỀN</Text>
+                  <p style={{ fontSize: "1.1rem", fontWeight: "800", margin: 0, color: "#4f46e5" }}>{qrData?.amount?.toLocaleString() || formData.amount.toLocaleString()} VNĐ</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <Text type="secondary" style={{ fontSize: "0.75rem", fontWeight: "700" }}>MÃ GIAO DỊCH</Text>
+                  <p style={{ fontSize: "1.1rem", fontWeight: "800", margin: 0 }}>#{qrData?.transactionID || qrData?.TransactionID}</p>
+                </div>
+              </div>
+              <Divider style={{ margin: "12px 0" }} />
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                   <div>
+                    <Text type="secondary" style={{ fontSize: "0.75rem", fontWeight: "700" }}>NỘI DUNG CHUYỂN KHOẢN</Text>
+                    <p style={{ fontSize: "1rem", fontWeight: "700", margin: 0, color: "#1e293b", letterSpacing: "1px" }}>{qrData?.transferMessage || qrData?.TransferMessage}</p>
+                   </div>
+                   <Button 
+                    type="primary" 
+                    size="small" 
+                    icon={<Copy size={12} />} 
+                    onClick={() => copyToClipboard(qrData?.transferMessage || qrData?.TransferMessage)}
+                    style={{ background: "#4f46e5", borderRadius: "8px" }}
+                   >
+                    Sao chép
+                   </Button>
                 </div>
               </div>
             </div>
 
-            <div
-              style={{
-                background: "#f8fafc",
-                border: "1px solid #e2e8f0",
-                borderRadius: "12px",
-                padding: "16px",
-                marginBottom: "24px",
-                textAlign: "left",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "0.85rem",
-                  color: "#64748b",
-                  marginBottom: "4px",
-                }}
-              >
-                Nội dung chuyển khoản
+            <div style={{ 
+              background: "#f0fdf4", 
+              padding: "16px", 
+              borderRadius: "20px", 
+              display: "flex", 
+              flexDirection: "column",
+              gap: "8px",
+              alignItems: "center",
+              marginBottom: "24px",
+              border: "1px solid #dcfce7"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#166534", fontWeight: "700" }}>
+                <Spin size="small" indicator={<Clock size={16} className="animate-spin" />} />
+                <span>Đang chờ bạn thực hiện thanh toán...</span>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "1.2rem",
-                    fontWeight: "bold",
-                    color: "#1e293b",
-                    letterSpacing: "1px",
-                  }}
-                >
-                  {qrData?.transferMessage ||
-                    qrData?.TransferMessage ||
-                    "Đang tải..."}
-                </span>
-                <button
-                  onClick={() =>
-                    copyToClipboard(
-                      qrData?.transferMessage || qrData?.TransferMessage,
-                    )
-                  }
-                  style={{
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    padding: "8px 12px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  <Copy size={16} /> Sao chép
-                </button>
-              </div>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#15803d", opacity: 0.8 }}>
+                Vui lòng <u>không</u> tắt cửa sổ này cho tới khi có thông báo thành công.
+              </p>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                color: "#15803d",
-                background: "#f0fdf4",
-                padding: "12px",
-                borderRadius: "12px",
-                fontSize: "0.9rem",
-                marginBottom: "24px",
-              }}
-            >
-              <Spin size="small" spinning={polling} />
-              <span>Hệ thống đang chờ bạn chuyển khoản...</span>
-            </div>
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Button 
+                onClick={() => setQrModalVisible(false)} 
+                block 
+                style={{ height: "50px", borderRadius: "14px", fontWeight: "700", background: "#f1f5f9", border: "none" }}
+              >
+                Hủy giao dịch
+              </Button>
+            </Space>
 
-            <button
-              onClick={() => setQrModalVisible(false)}
-              style={{
-                width: "100%",
-                padding: "14px",
-                background: "#1e293b",
-                color: "white",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "1rem",
-                fontWeight: "600",
-                cursor: "pointer",
-              }}
-            >
-              Tôi đã chuyển khoản
-            </button>
+            <div style={{ marginTop: "24px", color: "#94a3b8", fontSize: "0.8rem", textAlign: "left" }}>
+              <Text strong style={{ fontSize: "0.75rem", display: "block", marginBottom: "4px" }}>📌 LƯU Ý QUAN TRỌNG:</Text>
+              <ul style={{ paddingLeft: "15px", margin: 0 }}>
+                <li>Quét đúng mã QR để hệ thống tự động nhận diện chính xác số tiền và nội dung.</li>
+                <li>Nếu bạn chuyển khoản thủ công, hãy nhập <b>chính xác</b> nội dung phía trên.</li>
+                <li>Giao dịch thường được xác nhận trong vòng 10-30 giây sau khi ngân hàng báo trừ tiền.</li>
+              </ul>
+            </div>
           </div>
         </Modal>
       </div>
@@ -757,40 +570,83 @@ export default function DonationPage() {
   );
 }
 
-/**
- * Input Field Component
- */
+function SectionTitle({ icon, title }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
+      <div style={{ padding: "8px", background: "#f1f5f9", borderRadius: "10px" }}>{icon}</div>
+      <h3 style={{ fontSize: "1.1rem", fontWeight: "800", margin: 0, color: "#1e293b", letterSpacing: "-0.3px" }}>{title}</h3>
+    </div>
+  );
+}
+
+function PaymentMethodCard({ id, selected, onClick, icon, title, desc, badge }) {
+  return (
+    <div 
+      onClick={onClick}
+      style={{
+        padding: "16px",
+        border: selected ? "2.5px solid #4f46e5" : "2px solid #e2e8f0",
+        background: selected ? "#eef2ff" : "white",
+        borderRadius: "20px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: "15px",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        position: "relative",
+        boxShadow: selected ? "0 4px 12px rgba(79, 70, 229, 0.1)" : "none",
+      }}
+    >
+      <div style={{ 
+        width: "50px", 
+        height: "50px", 
+        background: selected ? "white" : "#f1f5f9", 
+        borderRadius: "14px", 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        color: selected ? "#4f46e5" : "#64748b"
+      }}>
+        {icon}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontWeight: "700", color: selected ? "#1e293b" : "#475569" }}>{title}</span>
+          {badge && <Tag color="gold" style={{ border: "none", borderRadius: "6px", fontSize: "0.7rem", fontWeight: "800" }}>{badge}</Tag>}
+        </div>
+        <p style={{ margin: "2px 0 0 0", fontSize: "0.85rem", color: "#94a3b8", fontWeight: "500" }}>{desc}</p>
+      </div>
+      {selected && (
+        <div style={{ width: "22px", height: "22px", background: "#4f46e5", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <CheckCircle2 size={14} color="white" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function InputField({ icon, error, ...props }) {
   return (
-    <div style={{ marginBottom: "15px" }}>
+    <div style={{ marginBottom: "18px" }}>
       <div style={{ position: "relative" }}>
-        <div
-          style={{
-            position: "absolute",
-            left: "14px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "#9ca3af",
-          }}
-        >
-          {icon}
-        </div>
+        <div style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }}>{icon}</div>
         <input
           {...props}
           style={{
             width: "100%",
-            padding: "14px 14px 14px 50px",
-            border: error ? "2px solid #ef4444" : "2px solid #e5e7eb",
-            borderRadius: "12px",
+            padding: "14px 14px 14px 48px",
+            border: error ? "2px solid #ef4444" : "2px solid #e2e8f0",
+            borderRadius: "14px",
             fontSize: "1rem",
+            fontWeight: "500",
+            outline: "none",
+            transition: "all 0.2s",
           }}
+          onFocus={e => (e.target.style.borderColor = "#4f46e5")}
+          onBlur={e => (e.target.style.borderColor = error ? "#ef4444" : "#e2e8f0")}
         />
       </div>
-      {error && (
-        <p style={{ color: "#ef4444", fontSize: "0.85rem", marginTop: "5px" }}>
-          {error}
-        </p>
-      )}
+      {error && <p style={{ color: "#ef4444", fontSize: "0.8rem", marginTop: "6px", fontWeight: "500", paddingLeft: "4px" }}>{error}</p>}
     </div>
   );
 }

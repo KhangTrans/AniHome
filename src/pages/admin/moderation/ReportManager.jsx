@@ -1,43 +1,252 @@
-import React, { useState } from 'react';
-import { AlertTriangle, UserX, MessageSquare } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Table, 
+  Button, 
+  Tag, 
+  Space, 
+  Card, 
+  Typography, 
+  Modal, 
+  Select, 
+  InputNumber,
+  Form,
+  Empty,
+  Tooltip,
+  Breadcrumb
+} from 'antd';
+import { 
+  AlertTriangle, 
+  CheckCircle, 
+  Eye, 
+  UserX, 
+  ShieldAlert,
+  Search,
+  RefreshCw,
+  ExternalLink
+} from 'lucide-react';
+import { getReports, handleReport } from '../../../services/admin/adminModerationService';
+import { useToast } from '../../../context/ToastContext';
+
+const { Title, Text } = Typography;
+const { Option } = Select;
 
 const ReportManager = () => {
-  const [reports, setReports] = useState([
-    { id: 1, type: 'Scam', target: 'ShelterABC', reporter: 'User123', detail: 'Asking for direct bank transfer' },
-    { id: 2, type: 'Harassment', target: 'Comment456', reporter: 'User789', detail: 'Rude language in comments' },
-  ]);
+  const toast = useToast();
+  const [form] = Form.useForm();
+  
+  // State
+  const [loading, setLoading] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const resolveReport = (id) => {
-    setReports(reports.filter(r => r.id !== id));
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const fetchReports = async () => {
+    setLoading(true);
+    const result = await getReports({ status: 'pending' });
+    if (result.success) {
+      // Backend might return array directly or wrapped in items
+      setReports(Array.isArray(result.data) ? result.data : (result.data.items || []));
+    } else {
+      toast.error('Không thể tải danh sách báo cáo: ' + result.error);
+    }
+    setLoading(false);
   };
 
+  const showHandleModal = (report) => {
+    setSelectedReport(report);
+    setIsModalVisible(true);
+    form.setFieldsValue({
+      action: 'Resolved',
+      offendingUserID: report.offendingUserID || 0
+    });
+  };
+
+  const handleCancel = () => {
+    setIsModalVisible(false);
+    setSelectedReport(null);
+    form.resetFields();
+  };
+
+  const onFinish = async (values) => {
+    setSubmitting(true);
+    const result = await handleReport(selectedReport.reportID, values);
+    if (result.success) {
+      toast.success(result.message || 'Xử lý báo cáo thành công!');
+      handleCancel();
+      fetchReports();
+    } else {
+      toast.error(result.error);
+    }
+    setSubmitting(false);
+  };
+
+  const getTargetTypeColor = (type) => {
+    switch (type?.toLowerCase()) {
+      case 'post': return 'blue';
+      case 'user': return 'orange';
+      case 'shelter': return 'purple';
+      case 'comment': return 'cyan';
+      default: return 'default';
+    }
+  };
+
+  const columns = [
+    {
+      title: 'ID',
+      dataIndex: 'reportID',
+      key: 'reportID',
+      width: 80,
+      render: (id) => <Text strong>#{id}</Text>
+    },
+    {
+      title: 'Lý do báo cáo',
+      dataIndex: 'reason',
+      key: 'reason',
+      render: (reason) => (
+        <Space>
+          <AlertTriangle size={16} color="#ef4444" />
+          <Text>{reason}</Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Đối tượng',
+      key: 'target',
+      render: (_, record) => (
+        <Space>
+          <Tag color={getTargetTypeColor(record.targetType)}>
+            {record.targetType?.toUpperCase()}
+          </Tag>
+          <Text type="secondary">ID: {record.targetID}</Text>
+        </Space>
+      )
+    },
+    {
+      title: 'Người báo cáo',
+      dataIndex: 'reporterName',
+      key: 'reporterName',
+      render: (name) => <Text>{name || 'Người dùng ẩn danh'}</Text>
+    },
+    {
+      title: 'Thao tác',
+      key: 'action',
+      width: 150,
+      render: (_, record) => (
+        <Button 
+          type="primary" 
+          danger 
+          ghost
+          icon={<ShieldAlert size={16} style={{ marginRight: '4px' }} />}
+          onClick={() => showHandleModal(record)}
+        >
+          Xử lý
+        </Button>
+      )
+    }
+  ];
+
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1 className="mb-4">Reported Content</h1>
-      <div className="flex flex-col gap-4">
-        {reports.map(report => (
-          <div key={report.id} className="card flex justify-between items-center bg-red-50" style={{ borderLeft: '4px solid var(--danger)' }}>
-            <div>
-               <div className="flex items-center gap-2 mb-2">
-                 <AlertTriangle size={20} color="var(--danger)" />
-                 <h3 style={{ fontSize: '1.1rem' }}>{report.type}</h3>
-               </div>
-               <p style={{ marginBottom: '0.5rem' }}><strong>Target:</strong> {report.target} | <strong>Reporter:</strong> {report.reporter}</p>
-               <p style={{ color: 'var(--gray)' }}>"{report.detail}"</p>
-            </div>
-            <div className="flex flex-col gap-2">
-                <button className="btn btn-primary" onClick={() => resolveReport(report.id)}>Ban User</button>
-                <button className="btn btn-outline" onClick={() => resolveReport(report.id)}>Dismiss</button>
-            </div>
-          </div>
-        ))}
-         {reports.length === 0 && (
-          <div className="text-center p-4">
-              <CheckCircle size={48} color="var(--success)" style={{ display: 'block', margin: '0 auto 1rem' }} />
-              <p style={{ color: 'var(--gray)' }}>All clear! No reports pending.</p>
-          </div>
-      )}
+    <div className="report-manager-page">
+      <div className="admin-page-header" style={{ marginBottom: '2rem' }}>
+        <div className="admin-page-title-wrapper">
+          <Title level={2} style={{ margin: 0 }}>Quản Lý Báo Cáo Vi Phạm</Title>
+          <Text type="secondary">Xem và xử lý các báo cáo từ người dùng về nội dung hoặc tài khoản vi phạm.</Text>
+        </div>
+        <Button 
+          icon={<RefreshCw size={18} />} 
+          onClick={fetchReports} 
+          loading={loading}
+        >
+          Làm mới
+        </Button>
       </div>
+
+      <Card bordered={false} style={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+        <Table 
+          columns={columns} 
+          dataSource={reports} 
+          loading={loading}
+          rowKey="reportID"
+          pagination={{
+            showTotal: (total) => `Tổng cộng ${total} báo cáo`
+          }}
+          locale={{
+            emptyText: <Empty description="Hiện không có báo cáo nào chờ xử lý" />
+          }}
+        />
+      </Card>
+
+      {/* Handle Report Modal */}
+      <Modal
+        title={
+          <Space>
+            <ShieldAlert size={20} color="#ef4444" />
+            <span>Xử lý báo cáo #{selectedReport?.reportID}</span>
+          </Space>
+        }
+        open={isModalVisible}
+        onCancel={handleCancel}
+        footer={null}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: '1.5rem' }}>
+          <Text strong>Lý do: </Text>
+          <Text type="danger">{selectedReport?.reason}</Text>
+          <br />
+          <Text strong>Đối tượng: </Text>
+          <Tag color={getTargetTypeColor(selectedReport?.targetType)}>
+            {selectedReport?.targetType?.toUpperCase()} (ID: {selectedReport?.targetID})
+          </Tag>
+        </div>
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ action: 'Resolved', offendingUserID: 0 }}
+        >
+          <Form.Item
+            name="action"
+            label="Chọn hành động"
+            rules={[{ required: true, message: 'Vui lòng chọn hành động' }]}
+          >
+            <Select style={{ width: '100%' }}>
+              <Option value="Resolved">Resolved (Đã giải quyết)</Option>
+              <Option value="Dismissed">Dismissed (Bác bỏ báo cáo)</Option>
+              <Option value="Banned">Banned (Khóa đối tượng vi phạm)</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="offendingUserID"
+            label="ID người vi phạm (tùy chọn)"
+            extra="Nhập ID nếu bạn muốn xử lý trực tiếp tài khoản vi phạm"
+          >
+            <InputNumber style={{ width: '100%' }} placeholder="Ví dụ: 105" />
+          </Form.Item>
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={handleCancel}>Hủy bỏ</Button>
+              <Button type="primary" danger htmlType="submit" loading={submitting}>
+                Xác nhận xử lý
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <style>{`
+        .report-manager-page .ant-table-thead > tr > th {
+          background: #fafafa;
+          font-weight: 700;
+        }
+      `}</style>
     </div>
   );
 };

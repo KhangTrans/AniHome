@@ -10,6 +10,9 @@ import {
 } from "lucide-react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
+import AdoptionFormModal from "../../components/AdoptionFormModal";
+import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../context/ToastContext";
 
 /**
  * PET DETAIL PAGE
@@ -21,6 +24,9 @@ export default function PetDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [showAdoptionModal, setShowAdoptionModal] = useState(false);
+  const { user } = useAuth();
+  const toast = useToast();
 
   useEffect(() => {
     const fetchPetDetail = async () => {
@@ -400,15 +406,21 @@ export default function PetDetailPage() {
 
               {/* Action Buttons */}
               <div style={{ display: "flex", gap: "12px" }}>
-                <Link
-                  to={`/adoption/${pet.petID}`}
+                <button
+                  onClick={() => {
+                    if (!user) {
+                      toast.warning("Vui lòng đăng nhập để đăng ký nhận nuôi!");
+                      return;
+                    }
+                    setShowAdoptionModal(true);
+                  }}
                   style={{
                     flex: 1,
                     padding: "14px",
                     background:
                       pet.status === "Available" ? "#3b82f6" : "#e5e7eb",
                     color: pet.status === "Available" ? "white" : "#9ca3af",
-                    textDecoration: "none",
+                    border: "none",
                     borderRadius: "12px",
                     fontSize: "1rem",
                     fontWeight: "600",
@@ -417,6 +429,7 @@ export default function PetDetailPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
+                    cursor: pet.status === "Available" ? "pointer" : "not-allowed",
                     pointerEvents: pet.status === "Available" ? "auto" : "none",
                   }}
                 >
@@ -424,7 +437,7 @@ export default function PetDetailPage() {
                   {pet.status === "Available"
                     ? `Nhận nuôi ${pet.petName}`
                     : "Không khả dụng"}
-                </Link>
+                </button>
               </div>
             </div>
           </div>
@@ -438,6 +451,21 @@ export default function PetDetailPage() {
       `}</style>
       </div>
       <Footer />
+      
+      {/* Adoption Modal */}
+      {showAdoptionModal && (
+        <AdoptionFormModal
+          animal={{
+            id: pet.petID,
+            name: pet.petName,
+            ...pet
+          }}
+          onClose={() => setShowAdoptionModal(false)}
+          onSubmit={(data) => {
+            console.log("Adoption request submitted:", data);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -110,14 +110,14 @@ export const getReports = async (params = {}) => {
  * 
  * @param {number} reportId - Report ID
  * @param {Object} handleData
- * @param {string} handleData.action - dismiss, warning, suspend, ban
- * @param {string} handleData.adminNotes - Ghi chú của admin
+ * @param {string} handleData.action - Resolved, Dismissed, Banned
+ * @param {number} [handleData.offendingUserID] - (Optional) ID của User vi phạm
  */
 export const handleReport = async (reportId, handleData) => {
   try {
     const response = await axiosInstance.patch(`/admin/moderation/reports/${reportId}/handle`, {
       action: handleData.action,
-      adminNotes: handleData.adminNotes || '',
+      offendingUserID: handleData.offendingUserID || 0,
     });
     
     return {

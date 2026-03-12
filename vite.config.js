@@ -10,9 +10,7 @@ export default defineConfig({
         target: 'https://tramcuuho.onrender.com',
         // target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
-        timeout: 60000,
-        proxyTimeout: 60000,
+        secure: false,
       }
     }
   }
