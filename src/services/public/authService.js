@@ -102,17 +102,28 @@ export const login = async (usernameOrEmail, password) => {
  */
 export const loginWithGoogle = async (googleToken) => {
   try {
-    const response = await axiosInstance.post('/auth/google-login', {
+    const response = await axiosInstance.post('/Auth/google-login', {
       idToken: googleToken,
     });
     
-    // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL }
-    // Backend trả về: { accessToken, refreshToken, fullName, avatarURL }
+    // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL, userID, roleID }
     const data = response.data;
-    const accessToken = data.accessToken || data.AccessToken;
-    const refreshToken = data.refreshToken || data.RefreshToken;
-    const fullName = data.fullName || data.FullName || data.full_name;
-    const avatarURL = data.avatarURL || data.AvatarURL || data.avatar_url;
+    const { 
+      userID, 
+      roleID, 
+      accessToken, 
+      refreshToken, 
+      fullName, 
+      avatarURL 
+    } = data;
+    
+    // Tạo user object đầy đủ
+    const user = {
+      userId: userID || data.userID || data.userId || data.UserId,
+      roleID: roleID || data.roleID || data.roleId || data.RoleId,
+      fullName: fullName || data.fullName || data.FullName,
+      avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
+    };
     
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
@@ -127,6 +138,7 @@ export const loginWithGoogle = async (googleToken) => {
       },
     };
   } catch (error) {
+    console.error('Google login error:', error.response?.data || error.message);
     return {
       success: false,
       error: error.response?.data?.message || 'Google login failed',
