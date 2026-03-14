@@ -114,39 +114,20 @@ export default function PetDetailPage() {
       <Navbar />
       <div>
         {/* Main Content */}
-        <div
-          style={{ maxWidth: "1200px", margin: "0 auto", padding: "40px 20px" }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "40px",
-            }}
-          >
+        <div className="detail-container">
+          <div className="detail-grid">
+
             {/* ── LEFT: Image Gallery ── */}
             <div>
               {/* Main image */}
-              <div
-                style={{
-                  position: "relative",
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-                }}
-              >
+              <div className="main-image-wrapper">
                 <img
                   src={
                     images[activeIdx] ||
                     "https://placehold.co/600x500?text=No+Image"
                   }
                   alt={pet.petName}
-                  style={{
-                    width: "100%",
-                    height: "480px",
-                    objectFit: "cover",
-                    display: "block",
-                  }}
+                  className="main-image"
                 />
 
                 {/* Prev / Next buttons — chỉ hiện khi có nhiều hơn 1 ảnh */}
@@ -285,11 +266,13 @@ export default function PetDetailPage() {
                       : pet.status}
               </div>
 
-              <h1
-                style={{ fontSize: "2.2rem", margin: "0 0 8px", color: "#111" }}
-              >
-                {pet.petName}
-              </h1>
+              <div className="pet-info-header">
+                <h1
+                  style={{ margin: "0 0 8px", color: "#111" }}
+                >
+                  {pet.petName}
+                </h1>
+              </div>
               <p
                 style={{
                   fontSize: "1.1rem",
@@ -347,14 +330,8 @@ export default function PetDetailPage() {
               )}
 
               {/* Info grid */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: "12px",
-                  marginBottom: "24px",
-                }}
-              >
+              <div className="info-grid">
+
                 <InfoItem label="Loại thú" value={pet.categoryName} />
                 <InfoItem label="Giống" value={pet.breed || "Chưa rõ"} />
                 <InfoItem
@@ -444,6 +421,83 @@ export default function PetDetailPage() {
         </div>
 
         <style>{`
+        .detail-container {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 40px 20px;
+        }
+
+        .detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+        }
+
+        .main-image-wrapper {
+          position: relative;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+
+        .main-image {
+          width: 100%;
+          height: 480px;
+          object-fit: cover;
+          display: block;
+        }
+
+        .pet-info-header h1 {
+          font-size: 2.2rem;
+          line-height: 1.2;
+        }
+
+        .info-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 12px;
+          margin-bottom: 24px;
+        }
+
+        @media (max-width: 1024px) {
+          .detail-grid {
+            gap: 30px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .detail-container {
+            padding: 20px 16px;
+          }
+
+          .detail-grid {
+            grid-template-columns: 1fr;
+            gap: 24px;
+          }
+
+          .main-image {
+            height: 380px;
+          }
+
+          .pet-info-header h1 {
+            font-size: 1.8rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .main-image {
+            height: 280px;
+          }
+
+          .info-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .pet-info-header h1 {
+            font-size: 1.6rem;
+          }
+        }
+
         @keyframes spin {
           0%   { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }

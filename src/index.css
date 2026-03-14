@@ -430,3 +430,60 @@ h1, h2, h3, h4, h5, h6 {
 .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
   padding: 0 calc(50% - 18px / 2) !important;
 }
+
+/* --- HomePaws Premium Logo & Animations --- */
+.logo-container {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.logo-text {
+  background: linear-gradient(135deg, var(--primary) 0%, #ff8787 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.logo-text-accent {
+  color: var(--secondary);
+  -webkit-text-fill-color: var(--secondary); /* Override gradient for accent */
+}
+
+.logo-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary);
+  padding: 6px;
+  border-radius: 10px;
+  color: white;
+  transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.logo-container:hover .logo-icon-wrapper {
+  transform: rotate(15deg) scale(1.1);
+  background: var(--primary-hover);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+}
+
+.logo-container:hover .logo-text {
+  filter: brightness(1.1);
+  letter-spacing: 0px;
+}
+
+/* Subtle paw bounce animation on load */
+@keyframes pawBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.logo-icon {
+  animation: pawBounce 2s infinite ease-in-out;
+}
+
+/* Text glow effect */
+.logo-container:hover .logo-text {
+  text-shadow: 0 0 15px rgba(255, 107, 107, 0.2);
+}

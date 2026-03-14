@@ -1,4 +1,4 @@
-import axiosInstance from '../axiosConfig';
+import axiosInstance from "../axiosConfig";
 
 /**
  * 🐾 SHELTER PETS MANAGEMENT APIs
@@ -10,7 +10,7 @@ import axiosInstance from '../axiosConfig';
 /**
  * GET /api/manage-shelter/{shelterId}/pets
  * Lấy danh sách pets của shelter
- * 
+ *
  * @param {number} shelterId - Shelter ID
  * @param {Object} params - Query params
  * @param {string} params.keyword - Search by pet name (optional)
@@ -30,8 +30,10 @@ export const getShelterPets = async (shelterId, params = {}) => {
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const response = await axiosInstance.get(`/manage-shelter/${shelterId}/pets?${queryString}`);
-    
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/pets?${queryString}`,
+    );
+
     return {
       success: true,
       data: response.data,
@@ -39,7 +41,7 @@ export const getShelterPets = async (shelterId, params = {}) => {
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to fetch shelter pets',
+      error: error.response?.data?.message || "Failed to fetch shelter pets",
     };
   }
 };
@@ -47,7 +49,7 @@ export const getShelterPets = async (shelterId, params = {}) => {
 /**
  * POST /api/manage-shelter/{shelterId}/pets
  * Thêm pet mới vào shelter
- * 
+ *
  * @param {number} shelterId - Shelter ID
  * @param {Object} petData - Pet information
  * @param {string} petData.petName - Tên thú cưng
@@ -64,31 +66,35 @@ export const getShelterPets = async (shelterId, params = {}) => {
  */
 export const addShelterPet = async (shelterId, petData) => {
   try {
-    const response = await axiosInstance.post(`/manage-shelter/${shelterId}/pets`, {
-      petName: petData.petName,
-      categoryID: petData.categoryID,
-      breed: petData.breed,
-      age: petData.age,
-      gender: petData.gender,
-      color: petData.color,
-      weight: petData.weight,
-      healthStatus: petData.healthStatus,
-      vaccinationStatus: petData.vaccinationStatus,
-      description: petData.description,
-      imageURL: petData.imageUrls?.[0] || petData.imageURL || '',
-      imageUrls: petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
-      status: petData.status || 'Available',
-    });
-    
+    const response = await axiosInstance.post(
+      `/manage-shelter/${shelterId}/pets`,
+      {
+        petName: petData.petName,
+        categoryID: petData.categoryID,
+        breed: petData.breed,
+        age: petData.age,
+        gender: petData.gender,
+        color: petData.color,
+        weight: petData.weight,
+        healthStatus: petData.healthStatus,
+        vaccinationStatus: petData.vaccinationStatus,
+        description: petData.description,
+        imageURL: petData.imageUrls?.[0] || petData.imageURL || "",
+        imageUrls:
+          petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
+        status: petData.status || "Available",
+      },
+    );
+
     return {
       success: true,
       data: response.data,
-      message: 'Thêm hồ sơ thú cưng thành công.',
+      message: "Thêm hồ sơ thú cưng thành công.",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to add pet',
+      error: error.response?.data?.message || "Failed to add pet",
     };
   }
 };
@@ -96,47 +102,50 @@ export const addShelterPet = async (shelterId, petData) => {
 /**
  * PUT /api/manage-shelter/{shelterId}/pets/{petId}
  * Cập nhật thông tin pet
- * 
+ *
  * @param {number} shelterId - Shelter ID
  * @param {number} petId - Pet ID
  * @param {Object} petData - Pet information
  */
 export const updateShelterPet = async (shelterId, petId, petData) => {
   try {
-    const response = await axiosInstance.put(`/manage-shelter/${shelterId}/pets/${petId}`, {
-      petName: petData.petName,
-      categoryID: petData.categoryID,
-      breed: petData.breed,
-      age: petData.age,
-      gender: petData.gender,
-      color: petData.color,
-      weight: petData.weight,
-      healthStatus: petData.healthStatus,
-      vaccinationStatus: petData.vaccinationStatus,
-      description: petData.description,
-      imageURL: petData.imageUrls?.[0] || petData.imageURL || '',
-      imageUrls: petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
-      status: petData.status || 'Available',
-    });
-    
+    const response = await axiosInstance.put(
+      `/manage-shelter/${shelterId}/pets/${petId}`,
+      {
+        petName: petData.petName,
+        categoryID: petData.categoryID,
+        breed: petData.breed,
+        age: petData.age,
+        gender: petData.gender,
+        color: petData.color,
+        weight: petData.weight,
+        healthStatus: petData.healthStatus,
+        vaccinationStatus: petData.vaccinationStatus,
+        description: petData.description,
+        imageURL: petData.imageUrls?.[0] || petData.imageURL || "",
+        imageUrls:
+          petData.imageUrls || (petData.imageURL ? [petData.imageURL] : []),
+        status: petData.status || "Available",
+      },
+    );
+
     return {
       success: true,
       data: response.data,
-      message: 'Cập nhật hồ sơ thú cưng thành công.',
+      message: "Cập nhật hồ sơ thú cưng thành công.",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to update pet',
+      error: error.response?.data?.message || "Failed to update pet",
     };
   }
 };
 
-
 /**
  * PATCH /api/manage-shelter/{shelterId}/pets/{petId}/status
  * Cập nhật trạng thái pet
- * 
+ *
  * @param {number} shelterId - Shelter ID
  * @param {number} petId - Pet ID
  * @param {string} newStatus - New status (Available/Adopted/InTreatment/Reserved/Deceased)
@@ -145,18 +154,18 @@ export const updatePetStatus = async (shelterId, petId, newStatus) => {
   try {
     const response = await axiosInstance.patch(
       `/manage-shelter/${shelterId}/pets/${petId}/status`,
-      { newStatus }
+      { newStatus },
     );
-    
+
     return {
       success: true,
       data: response.data,
-      message: 'Cập nhật trạng thái thành công.',
+      message: "Cập nhật trạng thái thành công.",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to update pet status',
+      error: error.response?.data?.message || "Failed to update pet status",
     };
   }
 };
@@ -166,22 +175,23 @@ export const updatePetStatus = async (shelterId, petId, newStatus) => {
  */
 export const validatePetData = (data) => {
   const errors = {};
-  
-  if (!data.petName) errors.petName = 'Vui lòng nhập tên thú cưng';
-  if (!data.categoryID) errors.categoryID = 'Vui lòng chọn loại thú cưng';
-  if (!data.breed) errors.breed = 'Vui lòng nhập giống';
-  if (!data.age) errors.age = 'Vui lòng nhập tuổi';
-  if (!data.gender) errors.gender = 'Vui lòng chọn giới tính';
-  if (!data.healthStatus) errors.healthStatus = 'Vui lòng nhập tình trạng sức khỏe';
-  
+
+  if (!data.petName) errors.petName = "Vui lòng nhập tên thú cưng";
+  if (!data.categoryID) errors.categoryID = "Vui lòng chọn loại thú cưng";
+  if (!data.breed) errors.breed = "Vui lòng nhập giống";
+  if (!data.age) errors.age = "Vui lòng nhập tuổi";
+  if (!data.gender) errors.gender = "Vui lòng chọn giới tính";
+  if (!data.healthStatus)
+    errors.healthStatus = "Vui lòng nhập tình trạng sức khỏe";
+
   if (data.age && (data.age < 0 || data.age > 300)) {
-    errors.age = 'Tuổi không hợp lệ';
+    errors.age = "Tuổi không hợp lệ";
   }
-  
+
   if (data.weight && (data.weight < 0 || data.weight > 200)) {
-    errors.weight = 'Cân nặng không hợp lệ';
+    errors.weight = "Cân nặng không hợp lệ";
   }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors,
@@ -192,17 +202,17 @@ export const validatePetData = (data) => {
  * Utility: Pet status options
  */
 export const PET_STATUS_OPTIONS = [
-  { value: 'Available', label: 'Sẵn Sàng Nhận Nuôi', color: 'success' },
-  { value: 'InTreatment', label: 'Đang Điều Trị', color: 'warning' },
-  { value: 'Reserved', label: 'Đã Đặt Trước', color: 'processing' },
-  { value: 'Adopted', label: 'Đã Được Nhận Nuôi', color: 'default' },
-  { value: 'Deceased', label: 'Đã Mất', color: 'error' },
+  { value: "Available", label: "Sẵn Sàng Nhận Nuôi", color: "success" },
+  { value: "InTreatment", label: "Đang Điều Trị", color: "warning" },
+  { value: "Reserved", label: "Đã Đặt Trước", color: "processing" },
+  { value: "Adopted", label: "Đã Được Nhận Nuôi", color: "default" },
+  { value: "Deceased", label: "Đã Mất", color: "error" },
 ];
 
 /**
  * Utility: Get pet gender options
  */
 export const PET_GENDER_OPTIONS = [
-  { value: 'Male', label: 'Đực', icon: '♂️' },
-  { value: 'Female', label: 'Cái', icon: '♀️' },
+  { value: "Male", label: "Đực", icon: "♂️" },
+  { value: "Female", label: "Cái", icon: "♀️" },
 ];

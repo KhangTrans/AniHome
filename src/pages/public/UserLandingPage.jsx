@@ -63,7 +63,9 @@ const UserLandingPage = () => {
   const [paymentMethod, setPaymentMethod] = useState("vnpay"); // 'vnpay' or 'vietqr'
   const [qrData, setQrData] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const pollingIntervalRef = React.useRef(null);
+  const dropdownRef = useRef(null);
 
   // API States
   const [animals, setAnimals] = useState([]);
@@ -149,6 +151,17 @@ const UserLandingPage = () => {
 
     fetchData();
   }, [toast]);
+
+  // Handle outside click to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const scrollContainer = carouselRef.current;
@@ -325,6 +338,7 @@ const UserLandingPage = () => {
           borderRadius: "0 0 50px 50px",
           marginBottom: "6rem",
           position: "relative",
+          zIndex: 20, /* Ensure header content is above the stats section that pulls up */
         }}
         className="animate-fadeIn"
       >
@@ -384,26 +398,42 @@ const UserLandingPage = () => {
               />
             </div>
 
-            {/* Filter Group */}
-            <div className="search-filter-group">
-              <Filter color="var(--gray)" size={20} />
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{
-                  border: "none",
-                  outline: "none",
-                  fontSize: "1rem",
-                  color: "var(--dark)",
-                  marginLeft: "8px",
-                  background: "transparent",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="All">Tất cả</option>
-                <option value="Chó">Chó</option>
-                <option value="Mèo">Mèo</option>
-              </select>
+             {/* Filter Group */}
+            <div 
+              className={`search-filter-group custom-select-wrapper ${isDropdownOpen ? "active" : ""}`}
+              ref={dropdownRef}
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            >
+              <div className="select-trigger">
+                <Filter color="var(--gray)" size={18} />
+                <span className="selected-value">
+                  {categoryFilter === "All" ? "Tất cả" : categoryFilter}
+                </span>
+                <span className={`chevron ${isDropdownOpen ? "up" : ""}`}>▾</span>
+              </div>
+              
+              {isDropdownOpen && (
+                <div className="custom-options">
+                  <div 
+                    className={`option-item ${categoryFilter === "All" ? "selected" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); setCategoryFilter("All"); setIsDropdownOpen(false); }}
+                  >
+                    Tất cả
+                  </div>
+                  <div 
+                    className={`option-item ${categoryFilter === "Chó" ? "selected" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); setCategoryFilter("Chó"); setIsDropdownOpen(false); }}
+                  >
+                    Chó
+                  </div>
+                  <div 
+                    className={`option-item ${categoryFilter === "Mèo" ? "selected" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); setCategoryFilter("Mèo"); setIsDropdownOpen(false); }}
+                  >
+                    Mèo
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Button */}
@@ -413,105 +443,36 @@ const UserLandingPage = () => {
       </header>
 
       {/* --- Stats Section --- */}
-      <section
-        style={{
-          maxWidth: "1000px",
-          margin: "-9rem auto 5rem",
-          position: "relative",
-          zIndex: 10,
-          padding: "0 1rem",
-        }}
-        className="animate-slideUp delay-200"
-      >
-        <div
-          style={{
-            background: "white",
-            borderRadius: "24px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.08)",
-            padding: "3rem",
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "2rem",
-            textAlign: "center",
-          }}
-        >
-          <div
-            className="hover-lift"
-            style={{ padding: "1rem", borderRadius: "12px" }}
-          >
-            <h3
-              style={{
-                fontSize: "3rem",
-                color: "var(--primary)",
-                marginBottom: "0.5rem",
-                fontWeight: 800,
-              }}
-            >
+      <section className="stats-section animate-slideUp delay-200">
+        <div className="stats-grid">
+
+          <div className="stat-item hover-lift">
+            <h3 className="stat-value primary">
               {homeStats ? homeStats.totalRescuedPets : "..."}
             </h3>
-            <p
-              style={{
-                color: "var(--gray)",
-                fontWeight: 600,
-                fontSize: "1.1rem",
-              }}
-            >
-              Động vật được cứu
-            </p>
+            <p className="stat-label">Động vật được cứu</p>
           </div>
-          <div
-            className="hover-lift"
-            style={{ padding: "1rem", borderRadius: "12px" }}
-          >
-            <h3
-              style={{
-                fontSize: "3rem",
-                color: "var(--secondary)",
-                marginBottom: "0.5rem",
-                fontWeight: 800,
-              }}
-            >
+
+          <div className="stat-item hover-lift">
+            <h3 className="stat-value secondary">
               {homeStats ? homeStats.successfulAdoptions : "..."}
             </h3>
-            <p
-              style={{
-                color: "var(--gray)",
-                fontWeight: 600,
-                fontSize: "1.1rem",
-              }}
-            >
-              Ca nhận nuôi thành công
-            </p>
+            <p className="stat-label">Ca nhận nuôi thành công</p>
           </div>
-          <div
-            className="hover-lift"
-            style={{ padding: "1rem", borderRadius: "12px" }}
-          >
-            <h3
-              style={{
-                fontSize: "3rem",
-                color: "var(--warning)",
-                marginBottom: "0.5rem",
-                fontWeight: 800,
-              }}
-            >
+
+          <div className="stat-item hover-lift">
+            <h3 className="stat-value warning">
               {homeStats ? homeStats.activeShelters : "..."}
             </h3>
-            <p
-              style={{
-                color: "var(--gray)",
-                fontWeight: 600,
-                fontSize: "1.1rem",
-              }}
-            >
-              Trạm cứu hộ hoạt động
-            </p>
+            <p className="stat-label">Trạm cứu hộ hoạt động</p>
           </div>
+
         </div>
       </section>
 
       {/* --- Main Content --- */}
-      <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "2rem" }}>
+      <main className="landing-main-content">
+
         {/* Categories */}
         <div className="flex justify-center gap-4 mb-16 flex-wrap animate-fadeIn delay-300">
           {["All", "Chó", "Mèo"].map((cat) => (
@@ -550,12 +511,8 @@ const UserLandingPage = () => {
             </Link>
           </div>
 
-          <div
-            className="grid gap-8"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-            }}
-          >
+          <div className="pet-grid">
+
             {filteredAnimals.map((animal, index) => (
               <div
                 key={animal.id}
@@ -574,15 +531,9 @@ const UserLandingPage = () => {
         {/* How It Works (Steps) */}
         <section
           id="how-it-works"
-          className="mb-20"
-          style={{
-            padding: "4rem 2rem",
-            background: "#f8f9fa",
-            borderRadius: "32px",
-            position: "relative",
-            overflow: "hidden",
-          }}
+          className="how-it-works-section"
         >
+
           <div
             style={{
               position: "absolute",
@@ -594,14 +545,8 @@ const UserLandingPage = () => {
                 "linear-gradient(to right, var(--primary), var(--secondary), var(--warning))",
             }}
           ></div>
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "4rem",
-              maxWidth: "42rem",
-              margin: "0 auto 4rem",
-            }}
-          >
+          <div className="how-it-works-header">
+
             <h3
               style={{
                 fontSize: "2.5rem",
@@ -815,13 +760,8 @@ const UserLandingPage = () => {
 
         {/* Happy Stories Section */}
         {happyStories && happyStories.length > 0 && (
-          <section
-            style={{
-              padding: "4rem 2rem",
-              background: "#fff",
-              position: "relative",
-            }}
-          >
+          <section className="happy-stories-section">
+
             <div style={{ textAlign: "center", marginBottom: "3rem" }}>
               <div
                 style={{
@@ -862,15 +802,8 @@ const UserLandingPage = () => {
               </p>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-                gap: "2rem",
-                maxWidth: "1200px",
-                margin: "0 auto",
-              }}
-            >
+            <div className="stories-grid">
+
               {happyStories.slice(0, 3).map((story) => {
                 let imageUrl =
                   "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80";
@@ -1518,6 +1451,368 @@ const UserLandingPage = () => {
           </button>
         </div>
       </Modal>
+      <style>{`
+        .landing-main-content {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 2rem;
+        }
+
+        .pet-grid {
+          display: grid;
+          gap: 2rem;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        }
+
+        .happy-stories-section {
+          padding: 4rem 2rem;
+          background: #fff;
+          position: relative;
+        }
+
+        .stories-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+          gap: 2rem;
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        @media (max-width: 768px) {
+          .landing-main-content {
+            padding: 1.5rem 1rem;
+          }
+
+          .pet-grid {
+            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          }
+
+          .happy-stories-section {
+            padding: 3rem 1rem;
+          }
+
+          .stories-grid {
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .landing-main-content {
+            padding: 1rem 0.5rem;
+          }
+
+          .pet-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+
+          .happy-stories-section {
+            padding: 2rem 0.75rem;
+          }
+        }
+
+        .how-it-works-section {
+          padding: 4rem 2rem;
+          background: #f8f9fa;
+          border-radius: 32px;
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 5rem;
+        }
+
+        .how-it-works-header {
+          text-align: center;
+          margin: 0 auto 4rem;
+          max-width: 42rem;
+        }
+
+        .how-it-works-header h3 {
+          font-size: 2.5rem;
+          margin-bottom: 1rem;
+          font-weight: 800;
+        }
+
+        @media (max-width: 768px) {
+          .how-it-works-section {
+            padding: 2rem 1rem;
+            margin-bottom: 2.5rem;
+            border-radius: 20px;
+          }
+
+          .how-it-works-header {
+            margin-bottom: 1.5rem;
+          }
+
+          .how-it-works-header h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+          }
+
+          .how-it-works-header p {
+            font-size: 0.9rem !important;
+          }
+
+          .steps-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 0.5rem;
+          }
+
+          .steps-grid p {
+            display: none !important;
+          }
+
+          .steps-grid h4 {
+            font-size: 0.85rem !important;
+            white-space: nowrap;
+          }
+
+          .steps-grid .hover-lift div {
+            width: 50px !important;
+            height: 50px !important;
+            margin-bottom: 0.75rem !important;
+          }
+
+          .steps-grid .hover-lift div svg {
+            width: 24px !important;
+            height: 24px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .how-it-works-section {
+            padding: 1.5rem 0.5rem;
+          }
+
+          .how-it-works-header h3 {
+            font-size: 1.35rem;
+          }
+
+          .steps-grid h4 {
+            font-size: 0.75rem !important;
+          }
+        }
+
+        .stats-section {
+          max-width: 1000px;
+          margin: -9rem auto 5rem;
+          position: relative;
+          z-index: 10;
+          padding: 0 1rem;
+        }
+
+        .stats-grid {
+          background: white;
+          border-radius: 24px;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+          padding: 3rem;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 2rem;
+          text-align: center;
+        }
+
+        .stat-item {
+          padding: 1rem;
+          border-radius: 12px;
+        }
+
+        .stat-value {
+          font-size: 3rem;
+          margin-bottom: 0.5rem;
+          font-weight: 800;
+        }
+
+        .stat-value.primary { color: var(--primary); }
+        .stat-value.secondary { color: var(--secondary); }
+        .stat-value.warning { color: var(--warning); }
+
+        .stat-label {
+          color: var(--gray);
+          font-weight: 600;
+          font-size: 1.1rem;
+        }
+
+        @media (max-width: 768px) {
+          .stats-section {
+            margin: -6rem auto 3.5rem;
+          }
+
+          .stats-grid {
+            padding: 1.25rem 0.5rem;
+            gap: 0.5rem;
+            grid-template-columns: repeat(3, 1fr);
+          }
+
+          .stat-item {
+            padding: 0.25rem;
+          }
+
+          .stat-value {
+            font-size: 1.5rem;
+            margin-bottom: 0.2rem;
+          }
+
+          .stat-label {
+            font-size: 0.75rem;
+            line-height: 1.2;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .stats-section {
+            margin: -6rem auto 2.5rem;
+          }
+
+          .stats-grid {
+            padding: 1rem 0.25rem;
+            border-radius: 16px;
+          }
+
+          .stat-value {
+            font-size: 1.25rem;
+          }
+          .stat-label {
+            font-size: 0.7rem;
+          }
+        }
+        /* Custom Select Styles */
+        .custom-select-wrapper {
+          position: relative;
+          cursor: pointer;
+          user-select: none;
+          min-width: 120px;
+        }
+
+        .select-trigger {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          height: 100%;
+          padding: 0 5px;
+        }
+
+        .selected-value {
+          font-weight: 600;
+          color: var(--dark);
+          font-size: 0.95rem;
+        }
+
+        .chevron {
+          font-size: 1.2rem;
+          color: var(--gray);
+          transition: transform 0.3s ease;
+          margin-left: auto;
+        }
+
+        .chevron.up {
+          transform: rotate(180deg);
+        }
+
+        .custom-options {
+          position: absolute;
+          top: calc(100% + 15px);
+          left: 0;
+          right: 0;
+          background: white;
+          border-radius: 16px;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+          overflow: hidden;
+          z-index: 9999; /* Ensure it stays above everything */
+          animation: slideDown 0.2s ease-out forwards;
+        }
+
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .option-item {
+          padding: 12px 20px;
+          font-size: 0.95rem;
+          color: #4b5563;
+          transition: all 0.2s ease;
+        }
+
+        .option-item:hover {
+          background: #fdf2f2;
+          color: var(--primary);
+        }
+
+        .option-item.selected {
+          background: #fff5f5;
+          color: var(--primary);
+          font-weight: 700;
+        }
+
+        .search-bar-container {
+          z-index: 1000 !important;
+          position: relative;
+        }
+
+        .custom-options {
+          position: absolute;
+          top: calc(100% + 10px);
+          left: 0;
+          right: 0;
+          background: white;
+          border-radius: 16px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+          overflow: hidden;
+          z-index: 10000;
+          animation: slideDown 0.2s ease-out forwards;
+        }
+
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .option-item {
+          padding: 12px 20px;
+          font-size: 0.95rem;
+          color: #4b5563;
+          transition: all 0.2s ease;
+        }
+
+        .option-item:hover {
+          background: #fdf2f2;
+          color: var(--primary);
+        }
+
+        .option-item.selected {
+          background: #fff5f5;
+          color: var(--primary);
+          font-weight: 700;
+        }
+
+        @media (max-width: 768px) {
+          .custom-select-wrapper {
+            width: 100%;
+            border-bottom: 1px solid #f3f4f6;
+            padding: 10px 0;
+          }
+          
+          .custom-options {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            background: white;
+            z-index: 10000;
+          }
+          
+          .select-trigger {
+            padding: 0 1rem;
+          }
+        }
+      `}</style>
+
+
     </div>
   );
 };

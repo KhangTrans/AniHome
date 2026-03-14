@@ -1,4 +1,4 @@
-import axiosInstance from '../axiosConfig';
+import axiosInstance from "../axiosConfig";
 
 /**
  * 🏥 SHELTER DASHBOARD APIs
@@ -10,13 +10,15 @@ import axiosInstance from '../axiosConfig';
 /**
  * GET /api/shelters/{shelterId}/dashboard
  * Lấy thông tin dashboard của shelter
- * 
+ *
  * @param {number} shelterId - Shelter ID
  */
 export const getShelterDashboard = async (shelterId) => {
   try {
-    const response = await axiosInstance.get(`/shelters/${shelterId}/dashboard`);
-    
+    const response = await axiosInstance.get(
+      `/shelters/${shelterId}/dashboard`,
+    );
+
     return {
       success: true,
       data: response.data,
@@ -24,7 +26,8 @@ export const getShelterDashboard = async (shelterId) => {
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to fetch shelter dashboard',
+      error:
+        error.response?.data?.message || "Failed to fetch shelter dashboard",
     };
   }
 };
@@ -35,8 +38,10 @@ export const getShelterDashboard = async (shelterId) => {
  */
 export const getShelterProfile = async (shelterId) => {
   try {
-    const response = await axiosInstance.get(`/manage-shelter/${shelterId}/profile`);
-    
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/profile`,
+    );
+
     return {
       success: true,
       data: response.data,
@@ -44,7 +49,7 @@ export const getShelterProfile = async (shelterId) => {
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to fetch shelter profile',
+      error: error.response?.data?.message || "Failed to fetch shelter profile",
     };
   }
 };
@@ -55,24 +60,28 @@ export const getShelterProfile = async (shelterId) => {
  */
 export const updateShelterProfile = async (shelterId, profileData) => {
   try {
-    const response = await axiosInstance.put(`/manage-shelter/${shelterId}/profile`, {
-      shelterName: profileData.shelterName,
-      location: profileData.location,
-      description: profileData.description,
-      bankName: profileData.bankName,
-      accountNumber: profileData.accountNumber,
-      imageUrls: profileData.imageUrls || [],
-    });
-    
+    const response = await axiosInstance.put(
+      `/manage-shelter/${shelterId}/profile`,
+      {
+        shelterName: profileData.shelterName,
+        location: profileData.location,
+        description: profileData.description,
+        bankName: profileData.bankName,
+        accountNumber: profileData.accountNumber,
+        imageUrls: profileData.imageUrls || [],
+      },
+    );
+
     return {
       success: true,
       data: response.data,
-      message: 'Cập nhật hồ sơ trạm thành công!',
+      message: "Cập nhật hồ sơ trạm thành công!",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to update shelter profile',
+      error:
+        error.response?.data?.message || "Failed to update shelter profile",
     };
   }
 };
@@ -97,32 +106,32 @@ export const formatDashboardStats = (stats) => {
 export const getDashboardCards = (stats) => {
   return [
     {
-      title: 'Tổng Thú Cưng',
+      title: "Tổng Thú Cưng",
       value: stats.totalPets || 0,
-      icon: '🐾',
-      color: '#3b82f6',
-      trend: '+12% từ tháng trước',
+      icon: "🐾",
+      color: "#3b82f6",
+      trend: "+12% từ tháng trước",
     },
     {
-      title: 'Sẵn Sàng Nhận Nuôi',
+      title: "Sẵn Sàng Nhận Nuôi",
       value: stats.availablePets || 0,
-      icon: '❤️',
-      color: '#10b981',
-      trend: 'Đang chờ chủ mới',
+      icon: "❤️",
+      color: "#10b981",
+      trend: "Đang chờ chủ mới",
     },
     {
-      title: 'Yêu Cầu Chờ Duyệt',
+      title: "Yêu Cầu Chờ Duyệt",
       value: stats.pendingAdoptions || 0,
-      icon: '📋',
-      color: '#f59e0b',
-      trend: 'Cần xử lý',
+      icon: "📋",
+      color: "#f59e0b",
+      trend: "Cần xử lý",
     },
     {
-      title: 'Sự Kiện Sắp Tới',
+      title: "Sự Kiện Sắp Tới",
       value: stats.upcomingEvents || 0,
-      icon: '📅',
-      color: '#8b5cf6',
-      trend: 'Trong tuần này',
+      icon: "📅",
+      color: "#8b5cf6",
+      trend: "Trong tuần này",
     },
   ];
 };

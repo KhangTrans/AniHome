@@ -40,17 +40,23 @@ const Navbar = () => {
           onClick={() => setIsMenuOpen(false)}
         >
           <h1
+            className="logo-container"
             style={{
-              color: "var(--primary)",
-              fontSize: "1.5rem",
+              fontSize: "1.6rem",
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
+              gap: "0.6rem",
               margin: 0,
-              fontWeight: "800",
+              fontWeight: "900",
+              letterSpacing: "-0.5px",
             }}
           >
-            <PawPrint fill="var(--primary)" /> PetRescue
+            <div className="logo-icon-wrapper">
+              <PawPrint className="logo-icon" size={28} />
+            </div>
+            <span className="logo-text">
+              Home<span className="logo-text-accent">Paws</span>
+            </span>
           </h1>
         </Link>
 

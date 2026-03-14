@@ -152,10 +152,10 @@ export const AuthProvider = ({ children }) => {
    */
   const updateUser = (updatedFields) => {
     if (!user) return;
-    
+
     const newUser = { ...user, ...updatedFields };
     setUser(newUser);
-    
+
     // Đồng bộ với localStorage
     const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
     if (storedUser) {

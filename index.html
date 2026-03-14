@@ -2,9 +2,35 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/homepaws.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>animal-rescue-platform</title>
+    <title>HomePaws</title>
+    <script>
+      (function animateTitle() {
+        const title = "HomePaws";
+        const emojis = ["🐾", "❤️", "✨", "🐶", "🐱"];
+        let index = 0;
+        let direction = 1;
+
+        setInterval(() => {
+          const currentTitle = title.substring(0, index);
+          const emoji = emojis[Math.floor(Date.now() / 1000) % emojis.length];
+          document.title =
+            currentTitle + (index === title.length ? " " + emoji : "...");
+
+          index += direction;
+          if (index > title.length) {
+            direction = -1;
+            // Dừng lại một chút ở chữ đầy đủ
+            setTimeout(() => {
+              direction = -1;
+            }, 2000);
+          } else if (index < 1) {
+            direction = 1;
+          }
+        }, 300);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

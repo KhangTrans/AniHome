@@ -12,7 +12,7 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "https://tramcuuho.onrender.com",
-        // target: 'http://localhost:8080',
+        // target: "http://localhost:8080",
         changeOrigin: true,
         secure: false,
       },

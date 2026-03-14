@@ -1,4 +1,4 @@
-import axiosInstance from '../axiosConfig';
+import axiosInstance from "../axiosConfig";
 
 /**
  * 🔓 PUBLIC AUTH APIs - /api/auth
@@ -18,23 +18,26 @@ export const register = async (userData) => {
       confirmNewPassword: userData.confirmNewPassword,
       fullName: userData.fullName,
     };
-    
-    const response = await axiosInstance.post('/Auth/register', payload);
-    
+
+    const response = await axiosInstance.post("/Auth/register", payload);
+
     // Backend trả về format: { message: "Đăng ký tài khoản thành công!" }
     // Không có token và user info ngay lập tức
     // User cần login sau khi đăng ký
-    
+
     return {
       success: true,
       data: response.data,
-      message: response.data.message || 'Registration successful',
+      message: response.data.message || "Registration successful",
       needLogin: true, // Flag để frontend biết cần redirect đến login
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || error.response?.data?.title || 'Registration failed',
+      error:
+        error.response?.data?.message ||
+        error.response?.data?.title ||
+        "Registration failed",
       details: error.response?.data?.errors || error.response?.data,
     };
   }
@@ -50,20 +53,14 @@ export const login = async (usernameOrEmail, password) => {
       usernameOrEmail,
       password,
     };
-    
-    const response = await axiosInstance.post('/Auth/login', payload);
-    
+
+    const response = await axiosInstance.post("/Auth/login", payload);
+
     // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL }
     const data = response.data;
-    const { 
-      userID, 
-      roleID, 
-      accessToken, 
-      refreshToken, 
-      fullName, 
-      avatarURL 
-    } = data;
-    
+    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL } =
+      data;
+
     // Tạo user object đầy đủ để lưu trữ và phân quyền
     const user = {
       userId: userID || data.userID || data.userId || data.UserId,
@@ -72,12 +69,12 @@ export const login = async (usernameOrEmail, password) => {
       avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
       usernameOrEmail,
     };
-    
+
     // Lưu vào localStorage theo yêu cầu duy trì trạng thái
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("refreshToken", refreshToken);
+    localStorage.setItem("user", JSON.stringify(user));
+
     return {
       success: true,
       data: {
@@ -85,13 +82,13 @@ export const login = async (usernameOrEmail, password) => {
         refreshToken,
         user,
       },
-      role: user.roleID
+      role: user.roleID,
     };
   } catch (error) {
-    console.error('Login error:', error.response?.data || error.message);
+    console.error("Login error:", error.response?.data || error.message);
     return {
       success: false,
-      error: error.response?.data?.message || 'Sai tài khoản hoặc mật khẩu',
+      error: error.response?.data?.message || "Sai tài khoản hoặc mật khẩu",
     };
   }
 };
@@ -102,21 +99,15 @@ export const login = async (usernameOrEmail, password) => {
  */
 export const loginWithGoogle = async (googleToken) => {
   try {
-    const response = await axiosInstance.post('/Auth/google-login', {
+    const response = await axiosInstance.post("/Auth/google-login", {
       idToken: googleToken,
     });
-    
+
     // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL, userID, roleID }
     const data = response.data;
-    const { 
-      userID, 
-      roleID, 
-      accessToken, 
-      refreshToken, 
-      fullName, 
-      avatarURL 
-    } = data;
-    
+    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL } =
+      data;
+
     // Tạo user object đầy đủ
     const user = {
       userId: userID || data.userID || data.userId || data.UserId,
@@ -124,11 +115,11 @@ export const loginWithGoogle = async (googleToken) => {
       fullName: fullName || data.fullName || data.FullName,
       avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
     };
-    
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
-    
+
+    localStorage.setItem("accessToken", accessToken);
+    localStorage.setItem("refreshToken", refreshToken);
+    localStorage.setItem("user", JSON.stringify(user));
+
     return {
       success: true,
       data: {
@@ -138,10 +129,10 @@ export const loginWithGoogle = async (googleToken) => {
       },
     };
   } catch (error) {
-    console.error('Google login error:', error.response?.data || error.message);
+    console.error("Google login error:", error.response?.data || error.message);
     return {
       success: false,
-      error: error.response?.data?.message || 'Google login failed',
+      error: error.response?.data?.message || "Google login failed",
     };
   }
 };
@@ -152,18 +143,18 @@ export const loginWithGoogle = async (googleToken) => {
  */
 export const forgotPassword = async (email) => {
   try {
-    const response = await axiosInstance.post('/Auth/forgot-password', {
+    const response = await axiosInstance.post("/Auth/forgot-password", {
       email,
     });
-    
+
     return {
       success: true,
-      message: response.data.message || 'Reset code sent to your email',
+      message: response.data.message || "Reset code sent to your email",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to send reset code',
+      error: error.response?.data?.message || "Failed to send reset code",
     };
   }
 };
@@ -174,21 +165,21 @@ export const forgotPassword = async (email) => {
  */
 export const resetPassword = async (resetData) => {
   try {
-    const response = await axiosInstance.post('/Auth/reset-password', {
+    const response = await axiosInstance.post("/Auth/reset-password", {
       email: resetData.email,
       token: resetData.token,
       newPassword: resetData.newPassword,
       confirmNewPassword: resetData.confirmNewPassword,
     });
-    
+
     return {
       success: true,
-      message: response.data.message || 'Password reset successfully',
+      message: response.data.message || "Password reset successfully",
     };
   } catch (error) {
     return {
       success: false,
-      error: error.response?.data?.message || 'Failed to reset password',
+      error: error.response?.data?.message || "Failed to reset password",
     };
   }
 };
@@ -198,7 +189,7 @@ export const resetPassword = async (resetData) => {
  */
 export const getCurrentUser = () => {
   try {
-    const userStr = localStorage.getItem('user');
+    const userStr = localStorage.getItem("user");
     return userStr ? JSON.parse(userStr) : null;
   } catch {
     return null;
@@ -209,14 +200,14 @@ export const getCurrentUser = () => {
  * Utility: Get access token
  */
 export const getAccessToken = () => {
-  return localStorage.getItem('accessToken');
+  return localStorage.getItem("accessToken");
 };
 
 /**
  * Utility: Get refresh token
  */
 export const getRefreshToken = () => {
-  return localStorage.getItem('refreshToken');
+  return localStorage.getItem("refreshToken");
 };
 
 /**
@@ -230,7 +221,7 @@ export const isAuthenticated = () => {
  * Utility: Clear auth data (for logout)
  */
 export const clearAuthData = () => {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  localStorage.removeItem('user');
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user");
 };

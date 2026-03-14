@@ -25,13 +25,17 @@ const Footer = () => {
             style={{
               fontSize: "1.2rem",
               marginBottom: "1rem",
-              color: "var(--primary)",
+              background:
+                "linear-gradient(135deg, var(--primary) 0%, #ff8787 100%)",
+              backgroundClip: "text",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
             }}
           >
-            <PawPrint size={20} /> PetRescue
+            <PawPrint size={20} /> HomePaws
           </h4>
           <p style={{ color: "var(--gray)", fontSize: "0.9rem" }}>
             Làm cho thế giới tốt đẹp hơn, từng bé một.
@@ -83,7 +87,7 @@ const Footer = () => {
             123 Đường Cứu Hộ, TP.HCM
           </p>
           <p style={{ color: "var(--gray)", fontSize: "0.9rem" }}>
-            hello@petrescue.com
+            hello@homepaws.com
           </p>
         </div>
       </div>

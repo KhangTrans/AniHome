@@ -51,14 +51,7 @@ const AnimalCard = ({ animal, isAdmin = false, onAction }) => {
         }}
       >
         {/* ── Image ── */}
-        <div
-          style={{
-            position: "relative",
-            height: "240px",
-            width: "100%",
-            overflow: "hidden",
-          }}
-        >
+        <div className="card-image-wrapper">
           <img
             src={animal.image}
             alt={animal.name}
@@ -70,55 +63,19 @@ const AnimalCard = ({ animal, isAdmin = false, onAction }) => {
             className="card-img-zoom"
           />
           {/* Status badge */}
-          <div
-            style={{
-              position: "absolute",
-              top: "12px",
-              right: "12px",
-              background: "rgba(255, 255, 255, 0.92)",
-              padding: "5px 12px",
-              borderRadius: "20px",
-              fontSize: "0.8rem",
-              fontWeight: "bold",
-              color: badge.color,
-              boxShadow: "0 2px 4px rgba(0,0,0,0.12)",
-            }}
-          >
+          <div className="status-badge" style={{ color: badge.color }}>
             {badge.label}
           </div>
 
           {/* Overlay hint khi hover */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(59,130,246,0.12)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              opacity: 0,
-              transition: "opacity 0.2s",
-            }}
-            className="card-hover-overlay"
-          >
-            <span
-              style={{
-                background: "white",
-                color: "#3b82f6",
-                fontWeight: 700,
-                padding: "8px 20px",
-                borderRadius: "20px",
-                fontSize: "0.9rem",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-              }}
-            >
-              Xem Chi Tiết →
-            </span>
+          <div className="card-hover-overlay">
+            <span>Xem Chi Tiết →</span>
           </div>
         </div>
 
         {/* ── Content ── */}
         <div
+          className="card-content-area"
           style={{
             padding: "1.5rem",
             flex: 1,
@@ -126,91 +83,50 @@ const AnimalCard = ({ animal, isAdmin = false, onAction }) => {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "0.5rem",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "1.4rem",
-                margin: 0,
-                fontWeight: 700,
-                color: "var(--dark)",
-              }}
-            >
+          <div className="card-header-info">
+            <h3 className="card-title">
               {animal.name}
             </h3>
-            <span
-              style={{
-                color: "var(--gray)",
-                fontSize: "0.9rem",
-                background: "#f3f4f6",
-                padding: "0.2rem 0.8rem",
-                borderRadius: "12px",
-              }}
-            >
+            <span className="card-breed-badge">
               {animal.breed}
             </span>
           </div>
 
-          <p
-            style={{
-              color: "#6b7280",
-              fontSize: "0.95rem",
-              marginBottom: "1.5rem",
-              flex: 1,
-              lineHeight: "1.6",
-              display: "-webkit-box",
-              WebkitLineClamp: 3,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
+          <p className="card-description">
             {animal.description}
           </p>
 
           {/* ── Buttons (click riêng, không trigger Link) ── */}
-          <div style={{ display: "flex", gap: "0.8rem", marginTop: "auto" }}>
+          <div className="card-actions">
             {isAdmin ? (
               <>
                 <button
-                  className="btn btn-secondary"
-                  style={{ flex: 1, justifyContent: "center" }}
+                  className="btn btn-secondary action-btn-main"
                   onClick={(e) => handleButtonClick(e, "approve")}
                 >
-                  Duyệt <CheckCircle size={18} />
+                  <span className="btn-text">Duyệt</span> <CheckCircle size={16} />
                 </button>
                 <button
-                  className="btn btn-outline"
-                  style={{ padding: "0.6rem" }}
+                  className="btn btn-outline action-btn-alt"
                   onClick={(e) => handleButtonClick(e, "details")}
                 >
-                  <Info size={18} />
+                  <Info size={16} />
                 </button>
               </>
             ) : (
               <>
                 <button
-                  className="btn btn-primary"
-                  style={{ flex: 1, justifyContent: "center" }}
+                  className="btn btn-primary action-btn-main"
                   onClick={(e) => handleButtonClick(e, "adopt")}
                 >
-                  Nhận Nuôi <Heart size={18} className="ml-1" />
+                  <span className="btn-text">Nhận nuôi</span> <Heart size={16} />
                 </button>
                 <button
-                  className="btn btn-outline"
-                  style={{
-                    padding: "0.6rem 1rem",
-                    borderColor: "#fee2e2",
-                    color: "var(--primary)",
-                  }}
+                  className="btn btn-outline action-btn-alt"
                   onClick={(e) => handleButtonClick(e, "donate")}
                 >
-                  Ủng Hộ
+                  <span className="btn-text">Ủng hộ</span>
+                  <span className="btn-icon-fallback"><Info size={16}/></span>
                 </button>
               </>
             )}
@@ -219,8 +135,160 @@ const AnimalCard = ({ animal, isAdmin = false, onAction }) => {
       </div>
 
       <style>{`
+        .card-image-wrapper {
+          position: relative;
+          height: 240px;
+          width: 100%;
+          overflow: hidden;
+        }
+
+        .status-badge {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          background: rgba(255, 255, 255, 0.92);
+          padding: 5px 12px;
+          borderRadius: 20px;
+          fontSize: 0.8rem;
+          font-weight: bold;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.12);
+        }
+
+        .card-hover-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(59,130,246,0.12);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+
+        .card-hover-overlay span {
+          background: white;
+          color: #3b82f6;
+          font-weight: 700;
+          padding: 8px 20px;
+          border-radius: 20px;
+          font-size: 0.9rem;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+
         .card:hover .card-hover-overlay {
           opacity: 1 !important;
+        }
+
+        .card-header-info {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 0.5rem;
+        }
+
+        .card-title {
+          font-size: 1.4rem;
+          margin: 0;
+          font-weight: 700;
+          color: var(--dark);
+        }
+
+        .card-breed-badge {
+          color: var(--gray);
+          font-size: 0.9rem;
+          background: #f3f4f6;
+          padding: 0.2rem 0.8rem;
+          border-radius: 12px;
+        }
+
+        .card-description {
+          color: #6b7280;
+          font-size: 0.95rem;
+          margin-bottom: 1.5rem;
+          flex: 1;
+          line-height: 1.6;
+          display: -webkit-box;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .card-actions {
+          display: flex;
+          gap: 0.8rem;
+          margin-top: auto;
+        }
+
+        .action-btn-main {
+          flex: 1;
+          justify-content: center;
+        }
+
+        .action-btn-alt {
+          padding: 0.6rem 1rem;
+          border-color: #fee2e2;
+          color: var(--primary);
+        }
+
+        .btn-icon-fallback {
+           display: none;
+        }
+
+        @media (max-width: 480px) {
+          .card-image-wrapper {
+            height: 150px;
+          }
+
+          .status-badge {
+            top: 6px;
+            right: 6px;
+            padding: 2px 8px;
+            font-size: 0.65rem;
+          }
+
+          .card-header-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+          }
+
+          .card-title {
+            font-size: 1.1rem;
+          }
+
+          .card-breed-badge {
+            font-size: 0.7rem;
+            padding: 1px 6px;
+          }
+
+          .card-description {
+            display: none; /* Hide description to save space on 2-col mobile */
+          }
+
+          .card-actions {
+            gap: 4px;
+          }
+
+          .action-btn-main {
+            padding: 0.5rem;
+            font-size: 0.8rem;
+          }
+
+          .action-btn-alt {
+            padding: 0.5rem;
+          }
+
+          .btn-text {
+            display: none; /* Hide text on small buttons */
+          }
+
+          .btn-icon-fallback {
+            display: block;
+          }
+          
+          .card-content-area {
+            padding: 0.75rem !important;
+          }
         }
       `}</style>
     </Link>
