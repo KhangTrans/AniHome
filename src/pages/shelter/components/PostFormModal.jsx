@@ -32,7 +32,7 @@ const PostFormModal = ({ visible, onCancel, onSubmit, loading, initialData = nul
         content: initialData.content,
         postType: initialData.postType,
       });
-      
+
       // Set existing images if available
       if (initialData.imageUrls || initialData.thumbnail) {
         try {
@@ -45,7 +45,7 @@ const PostFormModal = ({ visible, onCancel, onSubmit, loading, initialData = nul
               images = parsed;
             }
           }
-          
+
           if (images.length > 0) {
             const newFileList = images.map((url, index) => ({
               uid: -index - 1,
@@ -113,7 +113,7 @@ const PostFormModal = ({ visible, onCancel, onSubmit, loading, initialData = nul
         if (!uploadResult.success) {
           message.error(
             "Tải ảnh lên thất bại: " +
-              (uploadResult.error || "Lỗi không xác định"),
+            (uploadResult.error || "Lỗi không xác định"),
           );
           setUploading(false);
           return;

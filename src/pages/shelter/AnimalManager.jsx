@@ -21,6 +21,7 @@ import {
   addShelterPet,
   updateShelterPet,
   updatePetStatus,
+  deleteShelterPet,
   PET_STATUS_OPTIONS,
 } from "../../services/shelter/shelterPetsService";
 import PetFormModal from "./components/PetFormModal";
@@ -133,13 +134,25 @@ const AnimalManager = () => {
   const handleDelete = (petId, petName) => {
     Modal.confirm({
       title: "⚠️ XÁC NHẬN XÓA",
-      content: `Bạn có chắc chắn muốn xóa hồ sơ thú cưng "${petName}"?`,
+      content: `Bạn có chắc chắn muốn xóa hồ sơ thú cưng "${petName}"? Hành động này không thể hoàn tác.`,
       okText: "Xóa",
       okType: "danger",
       cancelText: "Hủy",
       onOk: async () => {
-        // TODO: Implement delete API when available
-        toast.info("Chức năng xóa đang được phát triển");
+        setLoading(true);
+        try {
+          const result = await deleteShelterPet(shelterID, petId);
+          if (result.success) {
+            toast.success(result.message || "Xóa thú cưng thành công");
+            fetchPets();
+          } else {
+            toast.error(result.error || "Xóa thú cưng thất bại");
+          }
+        } catch (error) {
+          toast.error("Đã xảy ra lỗi khi xóa thú cưng");
+        } finally {
+          setLoading(false);
+        }
       },
     });
   };
@@ -245,7 +258,10 @@ const AnimalManager = () => {
               type="primary"
               size="large"
               icon={<Plus size={18} />}
-              onClick={() => setFormModalVisible(true)}
+              onClick={() => {
+                setEditingPet(null);
+                setFormModalVisible(true);
+              }}
             >
               Thêm Hồ Sơ Mới
             </Button>

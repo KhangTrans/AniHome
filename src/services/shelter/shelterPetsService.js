@@ -171,6 +171,32 @@ export const updatePetStatus = async (shelterId, petId, newStatus) => {
 };
 
 /**
+ * DELETE /api/manage-shelter/{shelterId}/pets/{petId}
+ * Xóa pet
+ *
+ * @param {number} shelterId - Shelter ID
+ * @param {number} petId - Pet ID
+ */
+export const deleteShelterPet = async (shelterId, petId) => {
+  try {
+    const response = await axiosInstance.delete(
+      `/manage-shelter/${shelterId}/pets/${petId}`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message: "Xóa hồ sơ thú cưng thành công.",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to delete pet",
+    };
+  }
+};
+
+/**
  * Utility: Validate pet data
  */
 export const validatePetData = (data) => {
