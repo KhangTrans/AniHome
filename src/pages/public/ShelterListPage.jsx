@@ -30,7 +30,7 @@ const ShelterListPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
-  const pageSize = 6;
+  const pageSize = 9;
 
   // Fetch shelters từ API với filter và pagination
   useEffect(() => {

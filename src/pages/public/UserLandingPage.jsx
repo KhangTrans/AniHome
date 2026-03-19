@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import AnimalCard from "../../components/AnimalCard";
+import Pagination from "../../components/Pagination";
 import Modal from "../../components/Modal";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -55,6 +56,9 @@ const UserLandingPage = () => {
     message: "",
   });
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 12;
 
   // Donation States
   const [donationAmount, setDonationAmount] = useState(50000);
@@ -77,6 +81,12 @@ const UserLandingPage = () => {
 
   const carouselRef = useRef(null);
 
+  // Handle page change
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   // Fetch pets and shelters from API
   useEffect(() => {
     const fetchData = async () => {
@@ -89,8 +99,8 @@ const UserLandingPage = () => {
         setHomeStats(statsResult.data);
       }
 
-      // Fetch pets
-      const result = await getPets({ page: 1, pageSize: 50 });
+      // Fetch pets with current page number
+      const result = await getPets({ page: currentPage, pageSize: 12 });
 
       if (result.success) {
         // Map backend data structure to frontend format
@@ -109,6 +119,15 @@ const UserLandingPage = () => {
           petName: pet.petName,
         }));
         setAnimals(mappedAnimals);
+
+        // Calculate pagination - use totalPages or totalCount from API
+        const apiTotalPages = result.data.totalPages;
+        if (apiTotalPages) {
+          setTotalPages(apiTotalPages);
+        } else {
+          const totalCount = result.data.totalCount || mappedAnimals.length;
+          setTotalPages(Math.ceil(totalCount / pageSize));
+        }
       } else {
         setError(result.error);
         toast.error("Failed to load pets: " + result.error);
@@ -138,6 +157,9 @@ const UserLandingPage = () => {
           },
         );
         setPartners(mappedShelters);
+      } else {
+        console.warn("Failed to load partners:", sheltersResult.error);
+        setPartners([]);
       }
 
       // Fetch happy stories
@@ -150,7 +172,7 @@ const UserLandingPage = () => {
     };
 
     fetchData();
-  }, [toast]);
+  }, [toast, currentPage]);
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -192,6 +214,12 @@ const UserLandingPage = () => {
     return matchesSearch && matchesCategory;
   });
 
+  // Recalculate totalPages based on filtered animals (for client-side filtering)
+  const filteredTotalPages =
+    categoryFilter !== "All" || searchTerm
+      ? Math.ceil(filteredAnimals.length / pageSize)
+      : totalPages;
+
   const handleAction = (type, animal) => {
     setSelectedAnimal(animal);
     if (type === "adopt") {
@@ -211,6 +239,11 @@ const UserLandingPage = () => {
       setFormData({ ...formData, name: user.name, email: user.email });
     }
   };
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [categoryFilter, searchTerm]);
 
   const handleDonate = async (e) => {
     e.preventDefault();
@@ -398,8 +431,8 @@ const UserLandingPage = () => {
               />
             </div>
 
-             {/* Filter Group */}
-            <div 
+            {/* Filter Group */}
+            <div
               className={`search-filter-group custom-select-wrapper ${isDropdownOpen ? "active" : ""}`}
               ref={dropdownRef}
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -411,22 +444,22 @@ const UserLandingPage = () => {
                 </span>
                 <span className={`chevron ${isDropdownOpen ? "up" : ""}`}>▾</span>
               </div>
-              
+
               {isDropdownOpen && (
                 <div className="custom-options">
-                  <div 
+                  <div
                     className={`option-item ${categoryFilter === "All" ? "selected" : ""}`}
                     onClick={(e) => { e.stopPropagation(); setCategoryFilter("All"); setIsDropdownOpen(false); }}
                   >
                     Tất cả
                   </div>
-                  <div 
+                  <div
                     className={`option-item ${categoryFilter === "Chó" ? "selected" : ""}`}
                     onClick={(e) => { e.stopPropagation(); setCategoryFilter("Chó"); setIsDropdownOpen(false); }}
                   >
                     Chó
                   </div>
-                  <div 
+                  <div
                     className={`option-item ${categoryFilter === "Mèo" ? "selected" : ""}`}
                     onClick={(e) => { e.stopPropagation(); setCategoryFilter("Mèo"); setIsDropdownOpen(false); }}
                   >
@@ -526,6 +559,15 @@ const UserLandingPage = () => {
               </div>
             ))}
           </div>
+
+          {/* Pagination */}
+          {filteredTotalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={filteredTotalPages}
+              onPageChange={handlePageChange}
+            />
+          )}
         </section>
 
         {/* How It Works (Steps) */}
@@ -813,7 +855,7 @@ const UserLandingPage = () => {
                     if (Array.isArray(parsed) && parsed.length > 0)
                       imageUrl = parsed[0];
                   }
-                } catch (e) {}
+                } catch (e) { }
 
                 return (
                   <Link
@@ -900,8 +942,8 @@ const UserLandingPage = () => {
                         >
                           {String(
                             story.excerpt ||
-                              story.content?.replace(/<[^>]*>?/gm, "") ||
-                              "",
+                            story.content?.replace(/<[^>]*>?/gm, "") ||
+                            "",
                           )
                             .replace(/&nbsp;/g, " ")
                             .substring(0, 120) + "..."}

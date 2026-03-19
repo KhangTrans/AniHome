@@ -4,7 +4,6 @@ import { MapPin, Phone, Mail, Globe, ArrowLeft, Heart } from "lucide-react";
 import AnimalCard from "../../components/AnimalCard";
 import Navbar from "../../components/Navbar";
 import { getShelterById } from "../../services/public/sheltersService";
-import { getPets } from "../../services/public/petsService";
 import AdoptionFormModal from "../../components/AdoptionFormModal";
 import Modal from "../../components/Modal";
 import { useAuth } from "../../context/AuthContext";
@@ -31,6 +30,8 @@ const ShelterDetailPage = () => {
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Modal States
   const [activeModal, setActiveModal] = useState(null);
@@ -87,41 +88,19 @@ const ShelterDetailPage = () => {
       };
       setShelter(mappedShelter);
 
-      // Use nested pets from the shelter API if available, else fallback to global pets list
-      if (backendShelter.pets && Array.isArray(backendShelter.pets)) {
-        const mappedPets = backendShelter.pets.map((pet) => ({
+      // Use pets from shelter detail directly instead of fetching separately
+      if (backendShelter.pets && backendShelter.pets.length > 0) {
+        const mappedAnimals = backendShelter.pets.map((pet) => ({
           id: pet.petID,
           name: pet.petName,
-          species: pet.categoryName, // Map categoryName to species
           breed: pet.breed,
-          image: pet.imageURL,
           status: pet.status,
-          description: pet.description || "",
+          image: pet.imageURL,
+          type: pet.categoryName,
         }));
-        setAnimals(mappedPets);
-      } else {
-        // Fallback: Fetch all animals and filter by shelterId
-        const petsResult = await getPets({ page: 1, pageSize: 100 });
-        if (petsResult.success) {
-          const mappedPets = (petsResult.data.items || []).map((pet) => ({
-            id: pet.petID,
-            name: pet.petName,
-            species: pet.speciesName,
-            breed: pet.breedName,
-            age: pet.age,
-            gender: pet.gender,
-            healthStatus: pet.healthStatus,
-            description: pet.description,
-            image: pet.image,
-            shelterId: pet.shelterID,
-            status: pet.status,
-          }));
-
-          const shelterAnimals = mappedPets.filter(
-            (animal) => animal.shelterId === parseInt(id),
-          );
-          setAnimals(shelterAnimals);
-        }
+        setAnimals(mappedAnimals);
+        setTotalPages(1);
+        setTotalCount(backendShelter.totalPets || 0);
       }
 
       setLoading(false);
