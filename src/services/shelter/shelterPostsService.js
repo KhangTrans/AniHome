@@ -9,15 +9,16 @@ import axiosInstance from '../axiosConfig';
  * POST /api/posts
  * Tạo bài viết mới
  * 
+ * @param {number} shelterId - Shelter ID
  * @param {Object} postData - Dữ liệu bài viết
  * @param {string} postData.title - Tiêu đề bài viết
  * @param {string} postData.content - Nội dung bài viết
  * @param {string} postData.postType - Loại bài viết (Story, News, Event)
  * @param {string[]} postData.imageUrls - Mảng các đường link ảnh
  */
-export const createNewPost = async (postData) => {
+export const createNewPost = async (shelterId, postData) => {
   try {
-    const response = await axiosInstance.post('/posts', postData);
+    const response = await axiosInstance.post(`/posts?shelterId=${shelterId}`, postData);
     return {
       success: true,
       data: response.data,

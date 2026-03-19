@@ -46,6 +46,7 @@ const PostManager = () => {
     pageSize: 12,
     totalCount: 0,
   });
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // Trigger for manual refresh
 
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -59,6 +60,7 @@ const PostManager = () => {
 
     // Ensure user is logged in with valid shelterID
     if (!shelterId) {
+      console.warn("ShelterId not available, skipping fetch");
       return;
     }
 
@@ -71,6 +73,7 @@ const PostManager = () => {
         ...(searchTerm && { searchTerm }),
       };
 
+      console.log("Fetching posts for shelterId:", shelterId, "params:", params);
       const result = await getMyPosts(shelterId, params);
 
       // Xử lý status code nếu Unauthorized (401)
@@ -93,6 +96,7 @@ const PostManager = () => {
           total = result.data.totalCount || 0;
         }
 
+        console.log("Posts fetched successfully:", items);
         setPosts(items);
         setPagination((prev) => ({
           ...prev,
@@ -101,12 +105,13 @@ const PostManager = () => {
       } else {
         toast.error(result.error || "Không thể tải danh sách bài viết");
       }
-    } catch {
+    } catch (error) {
+      console.error("Fetch posts error:", error);
       toast.error("Đã xảy ra lỗi khi tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, filterType, searchTerm, toast, user]);
+  }, [pagination.page, pagination.pageSize, filterType, searchTerm, toast, user, refreshTrigger]);
 
   useEffect(() => {
     fetchPosts();
@@ -118,6 +123,12 @@ const PostManager = () => {
   };
 
   const handleCreatePost = async (values) => {
+    const shelterId = user?.shelterID;
+    if (!shelterId) {
+      toast.error("ShelterId not available");
+      return;
+    }
+
     setFormLoading(true);
     try {
       const postData = {
@@ -127,12 +138,14 @@ const PostManager = () => {
         imageUrls: values.imageUrls,
       };
 
-      const result = await createNewPost(postData);
+      const result = await createNewPost(shelterId, postData);
 
       if (result.success) {
         toast.success("Tạo bài viết mới thành công!");
         setFormModalVisible(false);
-        fetchPosts();
+        // Reset pagination to page 1 and trigger refresh
+        setPagination((prev) => ({ ...prev, page: 1 }));
+        setRefreshTrigger((prev) => prev + 1);
       } else {
         toast.error(result.error || "Tạo bài viết failed");
       }
