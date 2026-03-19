@@ -125,31 +125,31 @@ const ShelterOverview = () => {
 
   const stats = dashboardData?.stats
     ? [
-        {
-          label: "Tổng Thú Cưng",
-          value: dashboardData.stats.totalPets || 0,
-          icon: <PawPrint size={32} />,
-          color: "#FF6B6B",
-        },
-        {
-          label: "Nhận Nuôi (Tháng)",
-          value: dashboardData.stats.adoptedThisMonth || 0,
-          icon: <TrendingUp size={32} />,
-          color: "#52C41A",
-        },
-        {
-          label: "Đơn Đợi Duyệt",
-          value: dashboardData.stats.pendingAdoptions || 0,
-          icon: <Clock size={32} />,
-          color: "#FAAD14",
-        },
-        {
-          label: "Hàng Tồn Thấp",
-          value: dashboardData.stats.lowStockItems || 0,
-          icon: <Package size={32} />,
-          color: "#F5222D",
-        },
-      ]
+      {
+        label: "Tổng Thú Cưng",
+        value: dashboardData.stats.totalAnimals || 0,
+        icon: <PawPrint size={32} />,
+        color: "#FF6B6B",
+      },
+      {
+        label: "Nhận Nuôi (Tháng)",
+        value: dashboardData.stats.adoptionsMonth || 0,
+        icon: <TrendingUp size={32} />,
+        color: "#52C41A",
+      },
+      {
+        label: "Đơn Đợi Duyệt",
+        value: dashboardData.stats.pendingApps || 0,
+        icon: <Clock size={32} />,
+        color: "#FAAD14",
+      },
+      {
+        label: "Hàng Tồn Thấp",
+        value: dashboardData.stats.lowStockItems || 0,
+        icon: <Package size={32} />,
+        color: "#F5222D",
+      },
+    ]
     : [];
 
   const recentActivities = dashboardData?.recentActivities || [];

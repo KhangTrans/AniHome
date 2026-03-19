@@ -44,7 +44,15 @@ const AdoptionManager = () => {
       const result = await getAdoptionsByShelter(shelterId);
       if (result.success) {
         console.log("Adoption Data Received:", result.data);
-        setAdoptions(result.data || []);
+        // Map API response fields to component expected fields
+        const mappedData = (result.data || []).map(item => ({
+          ...item,
+          phoneNumber: item.phone || item.phoneNumber,
+          housingType: item.homeType || item.housingType,
+          hasOtherPets: item.hasPets !== undefined ? item.hasPets : item.hasOtherPets,
+          adoptionRequestID: item.requestID || item.adoptionRequestID || item.id || item.adoptionID,
+        }));
+        setAdoptions(mappedData);
       } else {
         toast.error(
           result.error || "Không thể tải danh sách yêu cầu nhận nuôi",
@@ -276,11 +284,7 @@ const AdoptionManager = () => {
           columns={columns}
           dataSource={adoptions}
           rowKey={(record, index) =>
-            record.adoptionRequestID ||
-            record.id ||
-            record.adoptionID ||
-            record.requestID ||
-            `adoption-${index}`
+            record.adoptionRequestID || `adoption-${index}`
           }
           loading={loading}
           pagination={{ pageSize: 10 }}

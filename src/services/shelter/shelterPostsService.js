@@ -31,15 +31,16 @@ export const createNewPost = async (postData) => {
 };
 
 /**
- * GET /api/posts/my-posts
+ * GET /api/Posts/by-shelter/{shelterId}
  * Lấy danh sách bài viết do Trạm Cứu Hộ hiện tại đăng
  * 
+ * @param {number} shelterId - Shelter ID
  * @param {Object} params - Query parameters
  * @param {number} params.page - Trang hiện tại
  * @param {number} params.pageSize - Số lượng hiển thị
  * @param {string} params.postType - Lọc theo loại bài viết
  */
-export const getMyPosts = async (params = {}) => {
+export const getMyPosts = async (shelterId, params = {}) => {
   try {
     const queryParams = {
       page: params.page || 1,
@@ -49,8 +50,8 @@ export const getMyPosts = async (params = {}) => {
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const response = await axiosInstance.get(`/posts/my-posts?${queryString}`);
-    
+    const response = await axiosInstance.get(`/Posts/by-shelter/${shelterId}?${queryString}`);
+
     return {
       success: true,
       data: response.data,
@@ -74,7 +75,7 @@ export const getMyPosts = async (params = {}) => {
 export const getMyPostById = async (id) => {
   try {
     const response = await axiosInstance.get(`/posts/my-posts/${id}`);
-    
+
     return {
       success: true,
       data: response.data,

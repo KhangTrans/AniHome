@@ -56,9 +56,9 @@ export const login = async (usernameOrEmail, password) => {
 
     const response = await axiosInstance.post("/Auth/login", payload);
 
-    // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL }
+    // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID }
     const data = response.data;
-    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL } =
+    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID } =
       data;
 
     // Tạo user object đầy đủ để lưu trữ và phân quyền
@@ -67,6 +67,7 @@ export const login = async (usernameOrEmail, password) => {
       roleID: roleID || data.roleID || data.roleId || data.RoleId,
       fullName: fullName || data.fullName || data.FullName,
       avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
+      shelterID: shelterID || data.shelterID || data.ShelterID,
       usernameOrEmail,
     };
 
@@ -103,9 +104,9 @@ export const loginWithGoogle = async (googleToken) => {
       idToken: googleToken,
     });
 
-    // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL, userID, roleID }
+    // Backend trả về format tương tự login: { accessToken, refreshToken, fullName, avatarURL, userID, roleID, shelterID }
     const data = response.data;
-    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL } =
+    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID } =
       data;
 
     // Tạo user object đầy đủ
@@ -114,6 +115,7 @@ export const loginWithGoogle = async (googleToken) => {
       roleID: roleID || data.roleID || data.roleId || data.RoleId,
       fullName: fullName || data.fullName || data.FullName,
       avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
+      shelterID: shelterID || data.shelterID || data.ShelterID,
     };
 
     localStorage.setItem("accessToken", accessToken);

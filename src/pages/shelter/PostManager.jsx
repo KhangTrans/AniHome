@@ -55,6 +55,13 @@ const PostManager = () => {
   const [loadingDetailId, setLoadingDetailId] = useState(null);
 
   const fetchPosts = React.useCallback(async () => {
+    const shelterId = user?.shelterID;
+
+    // Ensure user is logged in with valid shelterID
+    if (!shelterId) {
+      return;
+    }
+
     setLoading(true);
     try {
       const params = {
@@ -64,7 +71,7 @@ const PostManager = () => {
         ...(searchTerm && { searchTerm }),
       };
 
-      const result = await getMyPosts(params);
+      const result = await getMyPosts(shelterId, params);
 
       // Xử lý status code nếu Unauthorized (401)
       if (result.status === 401) {
@@ -99,7 +106,7 @@ const PostManager = () => {
     } finally {
       setLoading(false);
     }
-  }, [pagination.page, pagination.pageSize, filterType, searchTerm, toast]);
+  }, [pagination.page, pagination.pageSize, filterType, searchTerm, toast, user]);
 
   useEffect(() => {
     fetchPosts();
