@@ -115,15 +115,10 @@ const PostManager = () => {
   }, [pagination.page, pagination.pageSize, filterType, searchTerm, toast, user, refreshTrigger]);
 
   useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
-
-  // Additional effect to refetch when user context is ready
-  useEffect(() => {
     if (user?.shelterID) {
       fetchPosts();
     }
-  }, [user?.shelterID]);
+  }, [fetchPosts, user?.shelterID]);
 
   const handleSearch = (value) => {
     setSearchTerm(value);
