@@ -171,16 +171,15 @@ export const updatePetStatus = async (shelterId, petId, newStatus) => {
 };
 
 /**
- * DELETE /api/manage-shelter/{shelterId}/pets/{petId}
+ * DELETE /api/pets/{petId}
  * Xóa pet
  *
- * @param {number} shelterId - Shelter ID
  * @param {number} petId - Pet ID
  */
-export const deleteShelterPet = async (shelterId, petId) => {
+export const deleteShelterPet = async (petId) => {
   try {
     const response = await axiosInstance.delete(
-      `/manage-shelter/${shelterId}/pets/${petId}`,
+      `/pets/${petId}`,
     );
 
     return {

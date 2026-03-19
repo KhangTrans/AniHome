@@ -141,7 +141,7 @@ const AnimalManager = () => {
       onOk: async () => {
         setLoading(true);
         try {
-          const result = await deleteShelterPet(shelterID, petId);
+          const result = await deleteShelterPet(petId);
           if (result.success) {
             toast.success(result.message || "Xóa thú cưng thành công");
             fetchPets();
