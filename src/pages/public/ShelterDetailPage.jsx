@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { MapPin, Phone, Mail, Globe, ArrowLeft, Heart } from "lucide-react";
 import AnimalCard from "../../components/AnimalCard";
+import Pagination from "../../components/Pagination";
 import Navbar from "../../components/Navbar";
 import { getShelterById } from "../../services/public/sheltersService";
 import AdoptionFormModal from "../../components/AdoptionFormModal";
@@ -30,12 +31,17 @@ const ShelterDetailPage = () => {
   const [animals, setAnimals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const pageSize = 8;
 
   // Modal States
   const [activeModal, setActiveModal] = useState(null);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
+
+  // Store all pets for pagination
+  const allPetsRef = useRef([]);
 
   // Donation States
   const [donationAmount, setDonationAmount] = useState(50000);
@@ -88,9 +94,9 @@ const ShelterDetailPage = () => {
       };
       setShelter(mappedShelter);
 
-      // Use pets from shelter detail directly instead of fetching separately
+      // Use pets from shelter detail and handle pagination on frontend
       if (backendShelter.pets && backendShelter.pets.length > 0) {
-        const mappedAnimals = backendShelter.pets.map((pet) => ({
+        const mappedAllAnimals = backendShelter.pets.map((pet) => ({
           id: pet.petID,
           name: pet.petName,
           breed: pet.breed,
@@ -98,9 +104,22 @@ const ShelterDetailPage = () => {
           image: pet.imageURL,
           type: pet.categoryName,
         }));
-        setAnimals(mappedAnimals);
-        setTotalPages(1);
-        setTotalCount(backendShelter.totalPets || 0);
+
+        // Store all pets in ref for pagination
+        allPetsRef.current = mappedAllAnimals;
+
+        // Calculate pagination
+        const totalPets = mappedAllAnimals.length;
+        const calculatedTotalPages = Math.ceil(totalPets / pageSize);
+
+        // Get animals for current page (page 1 on initial load)
+        const startIndex = 0;
+        const paginatedAnimals = mappedAllAnimals.slice(startIndex, startIndex + pageSize);
+
+        setAnimals(paginatedAnimals);
+        setTotalPages(calculatedTotalPages);
+        setTotalCount(totalPets);
+        setCurrentPage(1);
       }
 
       setLoading(false);
@@ -108,6 +127,20 @@ const ShelterDetailPage = () => {
 
     fetchData();
   }, [id, toast]);
+
+  // Handle pagination changes
+  useEffect(() => {
+    if (allPetsRef.current.length === 0) return;
+
+    const startIndex = (currentPage - 1) * pageSize;
+    const paginatedAnimals = allPetsRef.current.slice(startIndex, startIndex + pageSize);
+    setAnimals(paginatedAnimals);
+  }, [currentPage, pageSize]);
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 400, behavior: "smooth" });
+  };
 
   const handleAction = (type, animal) => {
     setSelectedAnimal(animal);
@@ -580,6 +613,15 @@ const ShelterDetailPage = () => {
                   </p>
                 )}
               </div>
+
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  totalCount={totalCount}
+                  onPageChange={handlePageChange}
+                />
+              )}
             </div>
           </div>
 
