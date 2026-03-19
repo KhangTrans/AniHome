@@ -10,8 +10,10 @@ import {
   Spin,
   Pagination,
   Badge,
+  Modal,
+  Popconfirm,
 } from "antd";
-import { Plus, RefreshCw, Eye } from "lucide-react";
+import { Plus, RefreshCw, Eye, Edit, Trash2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { formatPostDate } from "../../services/public/postsService";
@@ -19,6 +21,8 @@ import {
   createNewPost,
   getMyPostsManagement,
   getMyPostById,
+  updatePost,
+  deletePost,
 } from "../../services/shelter/shelterPostsService";
 import PostFormModal from "./components/PostFormModal";
 import PostDetailModal from "./components/PostDetailModal";
@@ -50,6 +54,7 @@ const PostManager = () => {
 
   const [formModalVisible, setFormModalVisible] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
+  const [editingPost, setEditingPost] = useState(null); // Track post being edited
 
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -141,19 +146,27 @@ const PostManager = () => {
         imageUrls: values.imageUrls,
       };
 
-      const result = await createNewPost(shelterId, postData);
+      let result;
+      if (editingPost) {
+        // Update existing post
+        result = await updatePost(editingPost.postID || editingPost.postId, postData);
+      } else {
+        // Create new post
+        result = await createNewPost(shelterId, postData);
+      }
 
       if (result.success) {
-        toast.success("Tạo bài viết mới thành công!");
+        toast.success(editingPost ? "Cập nhật bài viết thành công!" : "Tạo bài viết mới thành công!");
         setFormModalVisible(false);
+        setEditingPost(null);
         // Reset pagination to page 1 and trigger refresh
         setPagination((prev) => ({ ...prev, page: 1 }));
         setRefreshTrigger((prev) => prev + 1);
       } else {
-        toast.error(result.error || "Tạo bài viết failed");
+        toast.error(result.error || (editingPost ? "Cập nhật bài viết failed" : "Tạo bài viết failed"));
       }
     } catch (error) {
-      toast.error("Lỗi khi thêm bài viết mới");
+      toast.error(editingPost ? "Lỗi khi cập nhật bài viết" : "Lỗi khi thêm bài viết mới");
     } finally {
       setFormLoading(false);
     }
@@ -174,6 +187,26 @@ const PostManager = () => {
       toast.error("Lỗi khi kết nối đến server");
     } finally {
       setLoadingDetailId(null);
+    }
+  };
+
+  const handleEditPost = async (post) => {
+    setEditingPost(post);
+    setFormModalVisible(true);
+  };
+
+  const handleDeletePost = async (postId) => {
+    try {
+      const result = await deletePost(postId);
+
+      if (result.success) {
+        toast.success("Xóa bài viết thành công!");
+        setRefreshTrigger((prev) => prev + 1);
+      } else {
+        toast.error(result.error || "Xóa bài viết failed");
+      }
+    } catch (error) {
+      toast.error("Lỗi khi xóa bài viết");
     }
   };
 
@@ -378,20 +411,54 @@ const PostManager = () => {
                     <div
                       style={{ padding: "0 24px 24px 24px", marginTop: "1rem" }}
                     >
-                      <Button
-                        type="dashed"
-                        block
-                        icon={<Eye size={16} />}
-                        loading={
-                          loadingDetailId === (post.postID || post.postId)
-                        }
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewDetails(post.postID || post.postId);
-                        }}
-                      >
-                        Nội dung bài
-                      </Button>
+                      <Space direction="vertical" style={{ width: "100%" }} size="small">
+                        <Button
+                          type="dashed"
+                          block
+                          icon={<Eye size={16} />}
+                          loading={
+                            loadingDetailId === (post.postID || post.postId)
+                          }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewDetails(post.postID || post.postId);
+                          }}
+                        >
+                          Nội dung bài
+                        </Button>
+                        <Button
+                          type="default"
+                          block
+                          icon={<Edit size={16} />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditPost(post);
+                          }}
+                        >
+                          Chỉnh sửa
+                        </Button>
+                        <Popconfirm
+                          title="Xóa bài viết"
+                          description="Bạn chắc chắn muốn xóa bài viết này? Hành động này không thể hoàn tác."
+                          onConfirm={(e) => {
+                            e.stopPropagation();
+                            handleDeletePost(post.postID || post.postId);
+                          }}
+                          onCancel={(e) => e.stopPropagation()}
+                          okText="Xóa"
+                          cancelText="Hủy"
+                        >
+                          <Button
+                            type="default"
+                            danger
+                            block
+                            icon={<Trash2 size={16} />}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Xóa
+                          </Button>
+                        </Popconfirm>
+                      </Space>
                     </div>
                   </Card>
                 </Badge.Ribbon>
@@ -428,9 +495,13 @@ const PostManager = () => {
 
         <PostFormModal
           visible={formModalVisible}
-          onCancel={() => setFormModalVisible(false)}
+          onCancel={() => {
+            setFormModalVisible(false);
+            setEditingPost(null);
+          }}
           onSubmit={handleCreatePost}
           loading={formLoading}
+          initialData={editingPost}
         />
 
         <PostDetailModal

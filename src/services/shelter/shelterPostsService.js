@@ -87,7 +87,7 @@ export const getMyPostsManagement = async (params = {}) => {
 
     const queryString = new URLSearchParams(queryParams).toString();
     const response = await axiosInstance.get(`/posts/my-posts/management?${queryString}`);
-    
+
     return {
       success: true,
       data: response.data,
@@ -119,6 +119,53 @@ export const getMyPostById = async (id) => {
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to fetch post details',
+    };
+  }
+};
+
+/**
+ * PUT /api/posts/{id}
+ * Cập nhật bài viết
+ * 
+ * @param {number} id - Post ID
+ * @param {Object} postData - Dữ liệu cập nhật
+ * @param {string} postData.title - Tiêu đề bài viết
+ * @param {string} postData.content - Nội dung bài viết
+ * @param {string} postData.postType - Loại bài viết
+ * @param {string[]} postData.imageUrls - Mảng các đường link ảnh
+ */
+export const updatePost = async (id, postData) => {
+  try {
+    const response = await axiosInstance.put(`/posts/${id}`, postData);
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to update post',
+    };
+  }
+};
+
+/**
+ * DELETE /api/posts/{id}
+ * Xóa bài viết
+ * 
+ * @param {number} id - Post ID
+ */
+export const deletePost = async (id) => {
+  try {
+    const response = await axiosInstance.delete(`/posts/${id}`);
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to delete post',
     };
   }
 };

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   Form,
@@ -16,10 +16,55 @@ import "react-quill-new/dist/quill.snow.css";
 
 const { Option } = Select;
 
-const PostFormModal = ({ visible, onCancel, onSubmit, loading }) => {
+const PostFormModal = ({ visible, onCancel, onSubmit, loading, initialData = null }) => {
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState([]);
   const [uploading, setUploading] = useState(false);
+
+  // Check if this is edit mode
+  const isEditMode = !!initialData;
+
+  // Populate form when initialData changes
+  useEffect(() => {
+    if (visible && isEditMode && initialData) {
+      form.setFieldsValue({
+        title: initialData.title,
+        content: initialData.content,
+        postType: initialData.postType,
+      });
+      
+      // Set existing images if available
+      if (initialData.imageUrls || initialData.thumbnail) {
+        try {
+          let images = [];
+          if (initialData.imageUrls && Array.isArray(initialData.imageUrls)) {
+            images = initialData.imageUrls;
+          } else if (initialData.thumbnail) {
+            const parsed = JSON.parse(initialData.thumbnail);
+            if (Array.isArray(parsed)) {
+              images = parsed;
+            }
+          }
+          
+          if (images.length > 0) {
+            const newFileList = images.map((url, index) => ({
+              uid: -index - 1,
+              name: `image-${index}`,
+              status: 'done',
+              url: url,
+              thumbUrl: url,
+            }));
+            setFileList(newFileList);
+          }
+        } catch (e) {
+          console.error("Error parsing images:", e);
+        }
+      }
+    } else if (visible && !isEditMode) {
+      form.resetFields();
+      setFileList([]);
+    }
+  }, [visible, isEditMode, initialData, form]);
 
   const modules = {
     toolbar: [
@@ -102,7 +147,7 @@ const PostFormModal = ({ visible, onCancel, onSubmit, loading }) => {
 
   return (
     <Modal
-      title="Tạo Bài Viết Mới"
+      title={isEditMode ? "Chỉnh Sửa Bài Viết" : "Tạo Bài Viết Mới"}
       open={visible}
       onCancel={handleCancel}
       footer={[
@@ -115,7 +160,7 @@ const PostFormModal = ({ visible, onCancel, onSubmit, loading }) => {
           loading={loading || uploading}
           onClick={() => form.submit()}
         >
-          {uploading ? "Đang Xử Lý..." : "Đăng Bài"}
+          {uploading ? "Đang Xử Lý..." : isEditMode ? "Cập nhật" : "Đăng Bài"}
         </Button>,
       ]}
       width={700}
