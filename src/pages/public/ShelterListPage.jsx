@@ -49,20 +49,23 @@ const ShelterListPage = () => {
 
       if (result.success) {
         // Map data từ backend structure sang frontend structure
-        const mappedShelters = (result.data.items || []).map((shelter) => ({
-          id: shelter.shelterID,
-          name: shelter.shelterName,
-          address: shelter.location,
-          region: shelter.regionName,
-          animalCount: shelter.totalPets || 0,
-          image:
-            (shelter.imageUrls && shelter.imageUrls[0]) ||
-            shelter.imageURL ||
-            "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80",
-          description:
-            shelter.description ||
-            `Trạm cứu hộ ${shelter.shelterName} tại ${shelter.location}`,
-        }));
+        const mappedShelters = (result.data.items || []).map((shelter) => {
+          console.log("🏥 Shelter Data:", shelter);
+          return {
+            id: shelter.shelterID,
+            name: shelter.shelterName,
+            address: shelter.location,
+            region: shelter.regionName,
+            animalCount: shelter.totalPets || shelter.petCount || 0,
+            image:
+              (shelter.imageUrls && shelter.imageUrls[0]) ||
+              shelter.imageURL ||
+              "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80",
+            description:
+              shelter.description ||
+              `Trạm cứu hộ ${shelter.shelterName} tại ${shelter.location}`,
+          };
+        });
 
         setShelters(mappedShelters);
         setTotalPages(result.data.totalPages || 1);
@@ -295,6 +298,9 @@ const ShelterListPage = () => {
                         overflow: "hidden",
                         border: "none",
                         animationDelay: `${index * 50}ms`,
+                        display: "flex",
+                        flexDirection: "column",
+                        height: "100%",
                       }}
                       className="card hover-lift group animate-fadeIn"
                     >
@@ -332,7 +338,7 @@ const ShelterListPage = () => {
                           {shelter.animalCount} Bé
                         </div>
                       </div>
-                      <div style={{ padding: "1.5rem" }}>
+                      <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", flex: 1 }}>
                         <div
                           style={{
                             display: "flex",
@@ -385,13 +391,14 @@ const ShelterListPage = () => {
                         <p
                           style={{
                             color: "#4b5563",
-                            marginBottom: "1.5rem",
+                            marginBottom: "0",
                             lineHeight: "1.6",
                             fontSize: "1rem",
                             display: "-webkit-box",
                             WebkitLineClamp: 2,
                             WebkitBoxOrient: "vertical",
                             overflow: "hidden",
+                            flex: 1,
                           }}
                         >
                           {shelter.description}
@@ -406,9 +413,11 @@ const ShelterListPage = () => {
                             alignItems: "center",
                             gap: "0.5rem",
                             width: "100%",
-                            padding: "0.8rem",
+                            padding: "0.8rem 1.5rem",
                             borderRadius: "12px",
                             fontWeight: 600,
+                            marginTop: "auto",
+                            fontSize: "1rem",
                           }}
                         >
                           Ghé Thăm Trạm <ArrowRight size={18} />

@@ -147,23 +147,37 @@ const ShelterDetailPage = () => {
 
   const handleDonate = async (e) => {
     e.preventDefault();
-    const petID = selectedAnimal?.id;
-    const petName = selectedAnimal?.name || "pet này";
 
-    if (!petID) {
-      toast.error("Không tìm thấy thông tin pet.");
+    // Check if donating to pet or shelter
+    const petID = selectedAnimal?.id;
+    const petName = selectedAnimal?.name || "";
+    const shelterName = shelter?.name || "trạm này";
+
+    // Must have either petID or shelterID
+    if (!petID && !shelter?.id) {
+      toast.error("Không tìm thấy thông tin pet hoặc trạm.");
       return;
     }
 
     setIsDonating(true);
     try {
+      const donationData = {
+        userID: getCurrentUserId(),
+        amount: donationAmount,
+        donorName: user?.name || "",
+      };
+
+      // Add petID or shelterID and set message based on type
+      if (petID) {
+        donationData.petID = petID;
+        donationData.message = donationMessage || `Đóng góp của bạn giúp cung cấp thức ăn và y tế cho ${petName}`;
+      } else {
+        donationData.shelterID = shelter.id;
+        donationData.message = donationMessage || `Đóng góp của bạn giúp hỗ trợ ${shelterName} chăm sóc các thú cưng`;
+      }
+
       if (paymentMethod === "vnpay") {
-        const result = await createVNPayDonation({
-          petID,
-          userID: getCurrentUserId(),
-          amount: donationAmount,
-          message: donationMessage || `Ủng hộ cho ${petName}`,
-        });
+        const result = await createVNPayDonation(donationData);
         if (result.success) {
           setActiveModal(null);
           redirectToVNPay(result.data.paymentUrl);
@@ -171,18 +185,11 @@ const ShelterDetailPage = () => {
           toast.error(result.error);
         }
       } else {
-        const result = await createVietQRDonation({
-          petID,
-          userID: getCurrentUserId(),
-          amount: donationAmount,
-          message: donationMessage || `Ủng hộ cho ${petName}`,
-          donorName: user?.name || "",
-        });
+        const result = await createVietQRDonation(donationData);
         if (result.success) {
           console.log("💰 VietQR Data Received (Shelter Detail):", result.data);
-          setQrData(result.data);
-          setActiveModal("vietqr_modal");
-          startPolling(result.data.transactionID || result.data.TransactionID);
+          setActiveModal(null);
+          window.location.href = result.data.qrImageUrl;
         } else {
           toast.error(result.error);
         }
@@ -611,7 +618,7 @@ const ShelterDetailPage = () => {
           <Modal
             isOpen={activeModal === "donate"}
             onClose={() => setActiveModal(null)}
-            title={`Quyên góp cho ${selectedAnimal?.name}`}
+            title={selectedAnimal ? `Quyên góp cho ${selectedAnimal.name}` : `Quyên góp cho ${shelter?.name}`}
           >
             <form
               onSubmit={handleDonate}
@@ -626,8 +633,16 @@ const ShelterDetailPage = () => {
                   fontSize: "0.875rem",
                 }}
               >
-                Đóng góp của bạn giúp cung cấp thức ăn và y tế cho{" "}
-                <strong>{selectedAnimal?.name}</strong>.
+                {selectedAnimal ? (
+                  <>
+                    Đóng góp của bạn giúp cung cấp thức ăn và y tế cho{" "}
+                    <strong>{selectedAnimal.name}</strong>.
+                  </>
+                ) : (
+                  <>
+                    Đóng góp của bạn giúp hỗ trợ <strong>{shelter?.name}</strong> chăm sóc các thú cưng.
+                  </>
+                )}
               </div>
 
               <label style={{ fontWeight: "bold", fontSize: "0.875rem" }}>

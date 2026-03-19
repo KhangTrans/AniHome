@@ -189,11 +189,28 @@ const RescueRequestPage = () => {
             className="container"
             style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 20px" }}
           >
+            <div className="rr-header-icon">
+              <PawPrint size={40} />
+            </div>
             <h1>Báo Cáo Cứu Hộ & Từ Bỏ Thú Cưng</h1>
             <p>
               Thông tin của bạn sẽ được gửi ngay lập tức đến trạm cứu hộ gần
               nhất để kịp thời hỗ trợ các bé.
             </p>
+            <div className="rr-header-steps">
+              <div className="step">
+                <span>1</span>
+                <p>Tải ảnh</p>
+              </div>
+              <div className="step">
+                <span>2</span>
+                <p>Nhập thông tin</p>
+              </div>
+              <div className="step">
+                <span>3</span>
+                <p>Gửi báo cáo</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -203,10 +220,11 @@ const RescueRequestPage = () => {
               {/* PHẦN 1: THÔNG TIN THÚ CƯNG */}
               <div className="rr-section">
                 <div className="rr-section-title">
-                  <span>1</span> Thông Tin Thú Cưng
+                  <span className="section-icon-number">📸</span>
+                  <span className="section-text">Thông Tin Thú Cưng</span>
                 </div>
 
-                <div className="form-group mb-4">
+                <div className="form-group">
                   <label className="required-field">
                     Hình Ảnh (Tối đa 3 ảnh)
                   </label>
@@ -249,8 +267,8 @@ const RescueRequestPage = () => {
                   )}
                 </div>
 
-                <div className="row">
-                  <div className="col-md-8 form-group mb-3">
+                <div className="form-grid form-grid-2col">
+                  <div className="form-group">
                     <label className="required-field">
                       Tên thú cưng / Đặc điểm nhận dạng
                     </label>
@@ -264,7 +282,7 @@ const RescueRequestPage = () => {
                       placeholder="VD: Chó cỏ màu vàng, có vòng cổ..."
                     />
                   </div>
-                  <div className="col-md-4 form-group mb-3">
+                  <div className="form-group">
                     <label>Giống loài</label>
                     <select
                       className="form-select"
@@ -279,7 +297,7 @@ const RescueRequestPage = () => {
                   </div>
                 </div>
 
-                <div className="form-group mb-3">
+                <div className="form-group">
                   <label>Tình trạng sức khỏe</label>
                   <textarea
                     className="form-control"
@@ -295,10 +313,12 @@ const RescueRequestPage = () => {
               {/* PHẦN 2: THÔNG TIN VỊ TRÍ & LÝ DO */}
               <div className="rr-section mt-4">
                 <div className="rr-section-title">
-                  <span>2</span> Thông Tin Vị Trí & Lý Do
+                  <span className="section-icon-number">📍</span>
+                  <span className="section-text">Thông Tin Vị Trí & Lý Do
+                  </span>
                 </div>
 
-                <div className="form-group mb-3">
+                <div className="form-group">
                   <label className="required-field">
                     Lý do cần giải cứu / Từ bỏ thú cưng
                   </label>
@@ -313,8 +333,8 @@ const RescueRequestPage = () => {
                   ></textarea>
                 </div>
 
-                <div className="row">
-                  <div className="col-md-6 form-group mb-3">
+                <div className="form-grid form-grid-2col">
+                  <div className="form-group">
                     <label className="required-field">Khu vực (Region)</label>
                     <select
                       required
@@ -331,7 +351,7 @@ const RescueRequestPage = () => {
                       ))}
                     </select>
                   </div>
-                  <div className="col-md-6 form-group mb-3">
+                  <div className="form-group">
                     <label className="required-field">
                       Địa chỉ chi tiết nơi phát hiện / Đang giữ
                     </label>
@@ -347,40 +367,32 @@ const RescueRequestPage = () => {
                   </div>
                 </div>
 
-                <div className="row align-items-end mt-2">
-                  <div className="col-md-8 form-group mb-3 mb-md-0">
-                    <label>
-                      Tọa độ (Không bắt buộc nhưng giúp dễ tìm kiếm hơn)
-                    </label>
-                    <div className="d-flex text-muted small mt-1">
-                      <div className="me-3" style={{ marginRight: "1rem" }}>
-                        Lat:{" "}
-                        {formData.latitude !== 0
-                          ? formData.latitude.toFixed(6)
-                          : "Chưa có"}
+                <div className="mt-3">
+                  <div className="rr-coordinates-box">
+                    <div className="coordinates-display">
+                      <div className="coord-item">
+                        <span className="coord-label">Latitude</span>
+                        <span className="coord-value">
+                          {formData.latitude !== 0
+                            ? formData.latitude.toFixed(6)
+                            : "Chưa có"}
+                        </span>
                       </div>
-                      <div>
-                        Long:{" "}
-                        {formData.longitude !== 0
-                          ? formData.longitude.toFixed(6)
-                          : "Chưa có"}
+                      <div className="coord-item">
+                        <span className="coord-label">Longitude</span>
+                        <span className="coord-value">
+                          {formData.longitude !== 0
+                            ? formData.longitude.toFixed(6)
+                            : "Chưa có"}
+                        </span>
                       </div>
                     </div>
-                  </div>
-                  <div className="col-md-4 text-md-end mt-3 mt-md-0">
                     <button
                       type="button"
-                      className="btn btn-outline"
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        borderColor: "var(--primary)",
-                        color: "var(--primary)",
-                      }}
+                      className="rr-location-btn"
                       onClick={handleGetLocation}
                     >
-                      <MapPin size={18} style={{ marginRight: "8px" }} /> Lấy vị
-                      trí ngay
+                      <MapPin size={18} /> Lấy vị trí ngay
                     </button>
                   </div>
                 </div>
