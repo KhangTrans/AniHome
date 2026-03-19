@@ -58,6 +58,7 @@ export const login = async (usernameOrEmail, password) => {
 
     // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID }
     const data = response.data;
+    console.log("Login response data:", data); // Debug: log actual response
     const { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID } =
       data;
 
@@ -70,6 +71,8 @@ export const login = async (usernameOrEmail, password) => {
       shelterID: shelterID || data.shelterID || data.ShelterID,
       usernameOrEmail,
     };
+
+    console.log("Created user object:", user); // Debug: log user object with shelterID
 
     // Lưu vào localStorage theo yêu cầu duy trì trạng thái
     localStorage.setItem("accessToken", accessToken);
