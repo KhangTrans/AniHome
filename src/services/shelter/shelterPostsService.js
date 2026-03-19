@@ -68,6 +68,40 @@ export const getMyPosts = async (shelterId, params = {}) => {
 };
 
 /**
+ * GET /api/posts/my-posts/management
+ * Lấy TẤT CẢ bài viết của tôi (Pending + Published + Rejected) - Dành cho Management
+ * 
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Trang hiện tại
+ * @param {number} params.pageSize - Số lượng hiển thị
+ * @param {string} params.postType - Lọc theo loại bài viết
+ */
+export const getMyPostsManagement = async (params = {}) => {
+  try {
+    const queryParams = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 12,
+      ...(params.postType && { postType: params.postType }),
+      ...(params.searchTerm && { searchTerm: params.searchTerm }),
+    };
+
+    const queryString = new URLSearchParams(queryParams).toString();
+    const response = await axiosInstance.get(`/posts/my-posts/management?${queryString}`);
+    
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      status: error.response?.status,
+      error: error.response?.data?.message || 'Không thể tải danh sách bài viết',
+    };
+  }
+};
+
+/**
  * GET /api/posts/my-posts/{id}
  * Xem chi tiết bài viết (Dành cho Dashboard)
  * 

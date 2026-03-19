@@ -17,7 +17,7 @@ import { useToast } from "../../context/ToastContext";
 import { formatPostDate } from "../../services/public/postsService";
 import {
   createNewPost,
-  getMyPosts,
+  getMyPostsManagement,
   getMyPostById,
 } from "../../services/shelter/shelterPostsService";
 import PostFormModal from "./components/PostFormModal";
@@ -73,26 +73,9 @@ const PostManager = () => {
         ...(searchTerm && { searchTerm }),
       };
 
-      console.log("Fetching posts for shelterId:", shelterId, "params:", params);
-      const result = await getMyPosts(shelterId, params);
-
-      // Xử lý status code nếu Unauthorized (401)
-      if (result.status === 401) {
-        toast.error(
-          "Phiên đăng nhập hết hạn hoặc bạn không có quyền. Vui lòng đăng nhập lại.",
-        );
-        return;
-      }
-
-      if (result.success) {
-        let items = [];
-        let total = 0;
-
-        if (Array.isArray(result.data)) {
-          items = result.data;
-          total = items.length;
-        } else if (result.data && result.data.items) {
-          items = result.data.items;
+      console.log("Fetching management posts with params:", params);
+      // Use management endpoint to see all posts (Pending + Published + Rejected)
+      const result = await getMyPostsManagement(params);
           total = result.data.totalCount || 0;
         }
 
