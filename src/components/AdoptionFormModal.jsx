@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { X, CheckCircle } from 'lucide-react';
+import { submitAdoptionRequest } from '../services/public/adoptionService';
+import toast from 'react-hot-toast';
 
 const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    address: '',
-    housingType: 'house',
-    hasPets: 'no',
+    adopterName: '',
+    adopterPhone: '',
+    adopterAddress: '',
+    livingSpace: 'house',
+    hasOtherPets: false,
     reason: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -19,16 +20,35 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    try {
+      const adoptionData = {
+        petId: animal.id,
+        adopterName: formData.adopterName,
+        adopterPhone: formData.adopterPhone,
+        adopterAddress: formData.adopterAddress,
+        reason: formData.reason,
+        livingSpace: formData.livingSpace,
+        hasOtherPets: formData.hasOtherPets
+      };
+
+      console.log('[ADOPTION FORM] Submitting form data:', adoptionData);
+      const result = await submitAdoptionRequest(adoptionData);
+
+      console.log('[ADOPTION FORM] Success:', result);
       setSuccess(true);
-      if (onSubmit) onSubmit({ animalId: animal.id, ...formData });
-    }, 1500);
+      toast.success(result.message || 'Đăng ký nhận nuôi thành công!');
+
+      if (onSubmit) onSubmit(adoptionData);
+    } catch (error) {
+      console.error('[ADOPTION FORM] Error:', error);
+      toast.error(error?.message || 'Có lỗi xảy ra, vui lòng thử lại');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!animal) return null;
@@ -64,7 +84,7 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
             <p style={{ color: '#666', marginBottom: '2rem' }}>
               Cảm ơn bạn đã quan tâm đến việc nhận nuôi <strong>{animal.name}</strong>. Trạm cứu hộ sẽ liên hệ với bạn trong thời gian sớm nhất.
             </p>
-            <button 
+            <button
               onClick={onClose}
               className="btn btn-primary"
               style={{ width: '100%' }}
@@ -74,15 +94,15 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
           </div>
         ) : (
           <>
-            <div style={{ 
-              padding: '1.5rem', 
-              borderBottom: '1px solid #eee', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center' 
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #eee',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
             }}>
               <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>Đăng Ký Nhận Nuôi {animal.name}</h2>
-              <button 
+              <button
                 onClick={onClose}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}
               >
@@ -93,11 +113,11 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
             <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Họ và Tên *</label>
-                <input 
-                  type="text" 
-                  name="fullName"
+                <input
+                  type="text"
+                  name="adopterName"
                   required
-                  value={formData.fullName}
+                  value={formData.adopterName}
                   onChange={handleChange}
                   className="form-control"
                   style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
@@ -105,41 +125,27 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Số Điện Thoại *</label>
-                  <input 
-                    type="tel" 
-                    name="phone"
-                    required
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="form-control"
-                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
-                    placeholder="0912..."
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Email</label>
-                  <input 
-                    type="email" 
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="form-control"
-                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
-                    placeholder="example@mail.com"
-                  />
-                </div>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Số Điện Thoại *</label>
+                <input
+                  type="tel"
+                  name="adopterPhone"
+                  required
+                  value={formData.adopterPhone}
+                  onChange={handleChange}
+                  className="form-control"
+                  style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
+                  placeholder="0912..."
+                />
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Địa Chỉ *</label>
-                <input 
-                  type="text" 
-                  name="address"
+                <input
+                  type="text"
+                  name="adopterAddress"
                   required
-                  value={formData.address}
+                  value={formData.adopterAddress}
                   onChange={handleChange}
                   className="form-control"
                   style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
@@ -149,13 +155,16 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                 <div>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Loại Nhà Ở</label>
-                  <select 
-                    name="housingType"
-                    value={formData.housingType}
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Loại Nhà Ở *</label>
+                  <select
+                    name="livingSpace"
+                    required
+                    value={formData.livingSpace}
                     onChange={handleChange}
+                    className="form-control"
                     style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
                   >
+                    <option value="">-- Chọn loại nhà ở --</option>
                     <option value="house">Nhà riêng</option>
                     <option value="apartment">Chung cư</option>
                     <option value="room">Phòng trọ</option>
@@ -163,13 +172,21 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
                   </select>
                 </div>
                 <div>
-                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Đã có thú cưng?</label>
-                   <select 
-                    name="hasPets"
-                    value={formData.hasPets}
-                    onChange={handleChange}
+                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Có nuôi thú cưng khác? *</label>
+                  <select
+                    name="hasOtherPets"
+                    required
+                    value={formData.hasOtherPets ? 'yes' : 'no'}
+                    onChange={(e) => {
+                      setFormData({
+                        ...formData,
+                        hasOtherPets: e.target.value === 'yes'
+                      });
+                    }}
+                    className="form-control"
                     style={{ width: '100%', padding: '0.75rem', border: '1px solid #ddd', borderRadius: '8px' }}
                   >
+                    <option value="">-- Chọn --</option>
                     <option value="no">Chưa có</option>
                     <option value="yes">Đã có</option>
                   </select>
@@ -178,7 +195,7 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
 
               <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>Tại sao bạn muốn nhận nuôi? *</label>
-                <textarea 
+                <textarea
                   name="reason"
                   required
                   value={formData.reason}
@@ -190,8 +207,8 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
                   className="btn btn-outline"
@@ -199,8 +216,8 @@ const AdoptionFormModal = ({ animal, onClose, onSubmit }) => {
                 >
                   Hủy
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSubmitting}
                   className="btn btn-primary"
                   style={{ flex: 1, padding: '0.75rem' }}

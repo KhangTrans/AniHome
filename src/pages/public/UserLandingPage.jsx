@@ -16,7 +16,7 @@ import Modal from "../../components/Modal";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import AdoptionFormModal from "../../components/AdoptionFormModal";
-import { getPets } from "../../services/public/petsService";
+import { getAvailablePets } from "../../services/public/petsService";
 import { getShelters } from "../../services/public/sheltersService";
 import {
   createVNPayDonation,
@@ -83,8 +83,11 @@ const UserLandingPage = () => {
         setHomeStats(statsResult.data);
       }
 
-      // Fetch pets with Pagination
-      const result = await getPets({ page: currentPage, pageSize: pageSize });
+      // Fetch available pets with Pagination
+      const result = await getAvailablePets({
+        page: currentPage,
+        pageSize: pageSize
+      });
 
       if (result.success) {
         const mappedAnimals = (result.data.items || []).map((pet) => ({
@@ -485,6 +488,7 @@ const UserLandingPage = () => {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
+                totalCount={animals.length}
                 onPageChange={(page) => {
                   setCurrentPage(page);
                   document.getElementById("featured").scrollIntoView({ behavior: "smooth" });

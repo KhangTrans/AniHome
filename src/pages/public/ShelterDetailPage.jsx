@@ -5,6 +5,7 @@ import AnimalCard from "../../components/AnimalCard";
 import Pagination from "../../components/Pagination";
 import Navbar from "../../components/Navbar";
 import { getShelterById } from "../../services/public/sheltersService";
+import { getAvailablePetsByShelter } from "../../services/public/petsService";
 import AdoptionFormModal from "../../components/AdoptionFormModal";
 import Modal from "../../components/Modal";
 import { useAuth } from "../../context/AuthContext";
@@ -39,9 +40,6 @@ const ShelterDetailPage = () => {
   // Modal States
   const [activeModal, setActiveModal] = useState(null);
   const [selectedAnimal, setSelectedAnimal] = useState(null);
-
-  // Store all pets for pagination
-  const allPetsRef = useRef([]);
 
   // Donation States
   const [donationAmount, setDonationAmount] = useState(50000);
@@ -94,9 +92,14 @@ const ShelterDetailPage = () => {
       };
       setShelter(mappedShelter);
 
-      // Use pets from shelter detail and handle pagination on frontend
-      if (backendShelter.pets && backendShelter.pets.length > 0) {
-        const mappedAllAnimals = backendShelter.pets.map((pet) => ({
+      // Fetch available pets (Available + InTreatment) using new endpoint
+      const petsResult = await getAvailablePetsByShelter(Number(id), {
+        page: 1,
+        pageSize: pageSize,
+      });
+
+      if (petsResult.success) {
+        const mappedAnimals = (petsResult.data.items || []).map((pet) => ({
           id: pet.petID,
           name: pet.petName,
           breed: pet.breed,
@@ -105,20 +108,9 @@ const ShelterDetailPage = () => {
           type: pet.categoryName,
         }));
 
-        // Store all pets in ref for pagination
-        allPetsRef.current = mappedAllAnimals;
-
-        // Calculate pagination
-        const totalPets = mappedAllAnimals.length;
-        const calculatedTotalPages = Math.ceil(totalPets / pageSize);
-
-        // Get animals for current page (page 1 on initial load)
-        const startIndex = 0;
-        const paginatedAnimals = mappedAllAnimals.slice(startIndex, startIndex + pageSize);
-
-        setAnimals(paginatedAnimals);
-        setTotalPages(calculatedTotalPages);
-        setTotalCount(totalPets);
+        setAnimals(mappedAnimals);
+        setTotalPages(petsResult.data.totalPages || 1);
+        setTotalCount(petsResult.data.totalCount || 0);
         setCurrentPage(1);
       }
 
@@ -128,14 +120,34 @@ const ShelterDetailPage = () => {
     fetchData();
   }, [id, toast]);
 
-  // Handle pagination changes
+  // Fetch available pets when currentPage changes (pagination)
   useEffect(() => {
-    if (allPetsRef.current.length === 0) return;
+    if (!id) return;
 
-    const startIndex = (currentPage - 1) * pageSize;
-    const paginatedAnimals = allPetsRef.current.slice(startIndex, startIndex + pageSize);
-    setAnimals(paginatedAnimals);
-  }, [currentPage, pageSize]);
+    const fetchAnimalsForPage = async () => {
+      const petsResult = await getAvailablePetsByShelter(Number(id), {
+        page: currentPage,
+        pageSize: pageSize,
+      });
+
+      if (petsResult.success) {
+        const mappedAnimals = (petsResult.data.items || []).map((pet) => ({
+          id: pet.petID,
+          name: pet.petName,
+          breed: pet.breed,
+          status: pet.status,
+          image: pet.imageURL,
+          type: pet.categoryName,
+        }));
+
+        setAnimals(mappedAnimals);
+        setTotalPages(petsResult.data.totalPages || 1);
+        setTotalCount(petsResult.data.totalCount || 0);
+      }
+    };
+
+    fetchAnimalsForPage();
+  }, [id, currentPage, pageSize]);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
@@ -576,7 +588,7 @@ const ShelterDetailPage = () => {
                 }}
               >
                 <h2 style={{ fontSize: "2rem", fontWeight: "bold" }}>
-                  Danh Sách Thú Cưng ({animals.length})
+                  Danh Sách Thú Cưng ({totalCount})
                 </h2>
               </div>
 
@@ -600,6 +612,7 @@ const ShelterDetailPage = () => {
                               ? "Đang duyệt"
                               : animal.status,
                       }}
+                      totalCount={totalCount}
                       onAction={(action) => handleAction(action, animal)}
                     />
                   ))
@@ -621,7 +634,7 @@ const ShelterDetailPage = () => {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  totalCount={totalCount}
+                  totalCount={animals.length}
                   onPageChange={handlePageChange}
                 />
               )}

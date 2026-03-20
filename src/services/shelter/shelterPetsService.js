@@ -227,11 +227,11 @@ export const validatePetData = (data) => {
  * Utility: Pet status options
  */
 export const PET_STATUS_OPTIONS = [
-  { value: "Available", label: "Sẵn Sàng Nhận Nuôi", color: "success" },
-  { value: "InTreatment", label: "Đang Điều Trị", color: "warning" },
-  { value: "Reserved", label: "Đã Đặt Trước", color: "processing" },
-  { value: "Adopted", label: "Đã Được Nhận Nuôi", color: "default" },
-  { value: "Deceased", label: "Đã Mất", color: "error" },
+  { value: "Available", label: "Sẵn Sàng Nhận Nuôi", bgColor: "#52c41a" },
+  { value: "InTreatment", label: "Đang Điều Trị", bgColor: "#faad14" },
+  { value: "Reserved", label: "Đã Đặt Trước", bgColor: "#1890ff" },
+  { value: "Adopted", label: "Đã Được Nhận Nuôi", bgColor: "#ff4d4f" },
+  { value: "Deceased", label: "Đã Mất", bgColor: "#8c8c8c" },
 ];
 
 /**

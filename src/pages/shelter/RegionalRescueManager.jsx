@@ -11,7 +11,6 @@ import {
   Typography,
   Tooltip,
   Image,
-  Radio,
 } from "antd";
 import {
   MapPin,
@@ -19,10 +18,10 @@ import {
   User,
   AlertCircle,
   Eye,
-  CheckCircle,
-  XCircle,
   Clock,
   ExternalLink,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import {
   getRegionalRequests,
@@ -44,23 +43,40 @@ const RegionalRescueManager = () => {
   const [statusFilter, setStatusFilter] = useState("all"); // all, Pending, Approved, Rejected
   const { user } = useAuth();
 
+  console.log('[REGIONAL RESCUE] User:', user);
+
+  // Initial fetch on component mount
   useEffect(() => {
-    fetchRequests();
+    console.log('[REGIONAL RESCUE] Component mounted, initial fetch trigger');
+    // Fetch all requests initially
+    fetchRequests(null);
   }, []);
+
+  // Fetch when status filter changes
+  useEffect(() => {
+    console.log('[REGIONAL RESCUE] Status filter changed to:', statusFilter);
+    const status = statusFilter === "all" ? null : statusFilter;
+    fetchRequests(status);
+  }, [statusFilter]);
 
   const fetchRequests = async (filterStatus = null) => {
     setLoading(true);
+    console.log('[REGIONAL RESCUE] Fetching requests with status:', filterStatus);
+    console.log('[REGIONAL RESCUE] User shelterID:', user?.shelterID);
     const result = await getRegionalRequests(filterStatus);
+    console.log('[REGIONAL RESCUE] Fetch result:', result);
     if (result.success) {
-      setRequests(result.data);
+      console.log('[REGIONAL RESCUE] Data received, count:', result.data?.length || 0);
+      setRequests(result.data || []);
     } else {
+      console.error('[REGIONAL RESCUE] Error:', result.error);
       message.error(result.error);
+      setRequests([]);
     }
     setLoading(false);
   };
 
-  const handleStatusFilterChange = (e) => {
-    const newStatus = e.target.value;
+  const handleStatusFilterChange = (newStatus) => {
     setStatusFilter(newStatus);
     // Fetch data with the selected status filter
     fetchRequests(newStatus === "all" ? null : newStatus);
@@ -102,7 +118,16 @@ const RegionalRescueManager = () => {
           : "Đã từ chối yêu cầu",
       );
       setProcessModalVisible(false);
-      fetchRequests(); // Refresh list
+
+      if (processStatus === 1) {
+        // If accepting, reset to "Tất cả" filter
+        await fetchRequests(null);
+        setStatusFilter("all");
+      } else {
+        // If rejecting, stay on Rejected filter
+        await fetchRequests("Rejected");
+        setStatusFilter("Rejected");
+      }
     } else {
       message.error(result.error);
     }
@@ -114,21 +139,42 @@ const RegionalRescueManager = () => {
       case "Pending":
       case 0:
         return (
-          <Tag icon={<Clock size={12} />} color="warning">
+          <Tag
+            icon={<Clock size={12} />}
+            style={{
+              backgroundColor: "#faad14",
+              color: "#fff",
+              borderColor: "#faad14",
+            }}
+          >
             Chờ xử lý
           </Tag>
         );
       case "Approved":
       case 1:
         return (
-          <Tag icon={<CheckCircle size={12} />} color="success">
+          <Tag
+            icon={<CheckCircle size={12} />}
+            style={{
+              backgroundColor: "#52c41a",
+              color: "#fff",
+              borderColor: "#52c41a",
+            }}
+          >
             Đã tiếp nhận
           </Tag>
         );
       case "Rejected":
       case 2:
         return (
-          <Tag icon={<XCircle size={12} />} color="error">
+          <Tag
+            icon={<XCircle size={12} />}
+            style={{
+              backgroundColor: "#ff4d4f",
+              color: "#fff",
+              borderColor: "#ff4d4f",
+            }}
+          >
             Đã từ chối
           </Tag>
         );
@@ -216,43 +262,84 @@ const RegionalRescueManager = () => {
       render: (status) => getStatusTag(status),
     },
     {
+      title: "Trạm xử lý",
+      key: "approvedInfo",
+      render: (_, record) => {
+        if (record.status === "Pending" || record.status === 0) {
+          return <Text type="secondary" className="text-xs">Chờ xử lý</Text>;
+        }
+        return (
+          <div className="text-xs">
+            <div className="font-medium">{record.approvedByShelterName || "N/A"}</div>
+            {record.approvedAt && (
+              <div className="text-gray-500">
+                {new Date(record.approvedAt).toLocaleDateString("vi-VN")}
+              </div>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       title: "Hành động",
       key: "actions",
-      width: 150,
-      render: (_, record) =>
-        record.status === "Pending" || record.status === 0 ? (
-          <Space>
-            <Tooltip title="Tiếp nhận">
+      width: 200,
+      render: (_, record) => {
+        if (record.status === "Pending" || record.status === 0) {
+          return (
+            <Space size="middle">
               <Button
                 type="primary"
-                shape="circle"
-                icon={<CheckCircle size={18} />}
                 onClick={() => handleOpenProcessModal(record, 1)}
-                className="flex items-center justify-center bg-green-500 border-none hover:bg-green-600"
-              />
-            </Tooltip>
-            <Tooltip title="Từ chối">
+                style={{
+                  backgroundColor: "#52c41a",
+                  borderColor: "#52c41a",
+                  color: "#fff",
+                }}
+              >
+                Tiếp nhận
+              </Button>
               <Button
-                type="primary"
                 danger
-                shape="circle"
-                icon={<XCircle size={18} />}
                 onClick={() => handleOpenProcessModal(record, 2)}
-                className="flex items-center justify-center"
-              />
-            </Tooltip>
-          </Space>
-        ) : (
-          <span className="text-gray-400 text-xs italic">Đã xử lý</span>
-        ),
+              >
+                Từ chối
+              </Button>
+            </Space>
+          );
+        } else if ((record.status === "Rejected" || record.status === 2) && statusFilter === "Rejected") {
+          return (
+            <Button
+              type="primary"
+              onClick={() => handleOpenProcessModal(record, 1)}
+              style={{
+                backgroundColor: "#52c41a",
+                borderColor: "#52c41a",
+                color: "#fff",
+              }}
+            >
+              Tiếp nhận
+            </Button>
+          );
+        } else {
+          return <span className="text-gray-400 text-xs italic">Đã xử lý</span>;
+        }
+      },
     },
   ];
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 bg-transparent">
-      <div className="flex justify-between items-center mb-6">
+      <div
+        style={{
+          marginBottom: "2rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
         <div>
-          <Title level={3} className="!mb-1">
+          <Title level={2} style={{ margin: 0 }}>
             Cứu hộ khu vực
           </Title>
           <Text type="secondary">
@@ -269,27 +356,74 @@ const RegionalRescueManager = () => {
         </Button>
       </div>
 
-      <Card className="shadow-sm border-none rounded-2xl overflow-hidden">
-        <div className="mb-4 flex items-center gap-4">
+      <Card className="shadow-sm border-none rounded-2xl overflow-hidden" style={{ marginBottom: "1.5rem" }}>
+        <div className="flex items-center gap-4 flex-wrap">
           <span className="font-medium text-gray-700">Lọc theo trạng thái:</span>
-          <Radio.Group
-            value={statusFilter}
-            onChange={handleStatusFilterChange}
-          >
-            <Radio.Button value="all">Tất cả</Radio.Button>
-            <Radio.Button value="Pending">Chờ xử lý</Radio.Button>
-            <Radio.Button value="Approved">Đã tiếp nhận</Radio.Button>
-            <Radio.Button value="Rejected">Đã từ chối</Radio.Button>
-          </Radio.Group>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Button
+              type={statusFilter === "all" ? "primary" : "default"}
+              danger={statusFilter === "all"}
+              onClick={() => handleStatusFilterChange("all")}
+              style={{
+                backgroundColor: statusFilter === "all" ? "#ff4d4f" : "transparent",
+                borderColor: statusFilter === "all" ? "#ff4d4f" : "#d9d9d9",
+                color: statusFilter === "all" ? "#fff" : "#000",
+              }}
+            >
+              Tất cả
+            </Button>
+            <Button
+              type={statusFilter === "Pending" ? "primary" : "default"}
+              onClick={() => handleStatusFilterChange("Pending")}
+              style={{
+                backgroundColor: statusFilter === "Pending" ? "#faad14" : "transparent",
+                borderColor: statusFilter === "Pending" ? "#faad14" : "#d9d9d9",
+                color: statusFilter === "Pending" ? "#fff" : "#000",
+              }}
+            >
+              Chờ xử lý
+            </Button>
+            <Button
+              type={statusFilter === "Approved" ? "primary" : "default"}
+              onClick={() => handleStatusFilterChange("Approved")}
+              style={{
+                backgroundColor: statusFilter === "Approved" ? "#52c41a" : "transparent",
+                borderColor: statusFilter === "Approved" ? "#52c41a" : "#d9d9d9",
+                color: statusFilter === "Approved" ? "#fff" : "#000",
+              }}
+            >
+              Đã tiếp nhận
+            </Button>
+            <Button
+              type={statusFilter === "Rejected" ? "primary" : "default"}
+              onClick={() => handleStatusFilterChange("Rejected")}
+              style={{
+                backgroundColor: statusFilter === "Rejected" ? "#f5222d" : "transparent",
+                borderColor: statusFilter === "Rejected" ? "#f5222d" : "#d9d9d9",
+                color: statusFilter === "Rejected" ? "#fff" : "#000",
+              }}
+            >
+              Đã từ chối
+            </Button>
+          </div>
         </div>
-        <Table
-          columns={columns}
-          dataSource={filteredRequests}
-          loading={loading}
-          rowKey="requestID"
-          pagination={{ pageSize: 10 }}
-          className="rescue-table"
-        />
+      </Card>
+
+      <Card className="shadow-sm border-none rounded-2xl overflow-hidden">
+        {filteredRequests.length === 0 && !loading ? (
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            <Text type="secondary">Không có yêu cầu cứu hộ</Text>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredRequests}
+            loading={loading}
+            rowKey="requestID"
+            pagination={{ pageSize: 10 }}
+            className="rescue-table"
+          />
+        )}
       </Card>
 
       {/* Process Modal */}

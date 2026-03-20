@@ -35,15 +35,18 @@ const AdoptionManager = () => {
   const [adoptions, setAdoptions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(null); // stores requestId of the item being updated
+  const [statusFilter, setStatusFilter] = useState('all'); // Filter state: all, Pending, Approved, Rejected
 
   const shelterId = user?.shelterID || 1;
 
-  const fetchAdoptions = useCallback(async () => {
+  const fetchAdoptions = useCallback(async (filterStatus) => {
     setLoading(true);
     try {
-      const result = await getAdoptionsByShelter(shelterId);
+      const status = filterStatus === 'all' ? null : filterStatus;
+      console.log('[ADOPTION MANAGER] Fetching adoptions with status:', status);
+      const result = await getAdoptionsByShelter(shelterId, status);
       if (result.success) {
-        console.log("Adoption Data Received:", result.data);
+        console.log(`[ADOPTION MANAGER] Data Received (${filterStatus}):`, result.data);
         // Map API response fields to component expected fields
         const mappedData = (result.data || []).map(item => ({
           ...item,
@@ -66,16 +69,24 @@ const AdoptionManager = () => {
   }, [shelterId]);
 
   useEffect(() => {
-    fetchAdoptions();
-  }, [fetchAdoptions]);
+    fetchAdoptions(statusFilter);
+  }, [fetchAdoptions, statusFilter]);
 
   const handleUpdateStatus = async (requestId, status) => {
     setActionLoading(requestId);
     try {
       const result = await updateAdoptionStatus(shelterId, requestId, status);
       if (result.success) {
-        toast.success(result.message);
-        fetchAdoptions(); // Reload data
+        // Custom message based on status
+        const statusMessages = {
+          "Approved": "✅ Đã duyệt thành công! Yêu cầu đã được xử lý.",
+          "Rejected": "❌ Đã từ chối thành công!",
+          "Pending": "⏳ Đã cập nhật trạng thái chờ",
+          "AlreadyAdopted": "📋 Đã cập nhật: Pet này đã được nhận nuôi"
+        };
+        const message = statusMessages[status] || result.message;
+        toast.success(message);
+        fetchAdoptions(statusFilter); // Reload data with current filter
       } else {
         toast.error(result.error);
       }
@@ -91,7 +102,11 @@ const AdoptionManager = () => {
       case "Approved":
         return (
           <Tag
-            color="success"
+            style={{
+              backgroundColor: "#52c41a",
+              color: "#fff",
+              borderColor: "#52c41a",
+            }}
             icon={
               <CheckCircle
                 size={14}
@@ -105,7 +120,11 @@ const AdoptionManager = () => {
       case "Rejected":
         return (
           <Tag
-            color="error"
+            style={{
+              backgroundColor: "#ff4d4f",
+              color: "#fff",
+              borderColor: "#ff4d4f",
+            }}
             icon={
               <XCircle
                 size={14}
@@ -119,7 +138,11 @@ const AdoptionManager = () => {
       case "Pending":
         return (
           <Tag
-            color="warning"
+            style={{
+              backgroundColor: "#faad14",
+              color: "#fff",
+              borderColor: "#faad14",
+            }}
             icon={
               <RefreshCw
                 size={14}
@@ -129,6 +152,24 @@ const AdoptionManager = () => {
             }
           >
             Đang chờ
+          </Tag>
+        );
+      case "AlreadyAdopted":
+        return (
+          <Tag
+            style={{
+              backgroundColor: "#1890ff",
+              color: "#fff",
+              borderColor: "#1890ff",
+            }}
+            icon={
+              <CheckCircle
+                size={14}
+                style={{ verticalAlign: "middle", marginRight: 4 }}
+              />
+            }
+          >
+            Đã nhận nuôi
           </Tag>
         );
       default:
@@ -215,38 +256,52 @@ const AdoptionManager = () => {
       key: "action",
       fixed: "right",
       render: (_, record) => {
-        if (record.status !== "Pending") return null;
-
         const requestId =
           record.adoptionRequestID ||
           record.id ||
           record.adoptionID ||
           record.requestID;
 
+        // Nếu status là Pending, hiển thị buttons
+        if (record.status === "Pending") {
+          return (
+            <Space size="middle">
+              <Tooltip title="">
+                <Button
+                  type="primary"
+                  loading={actionLoading === requestId}
+                  onClick={() => {
+                    console.log("Action on Request:", requestId, record);
+                    handleUpdateStatus(requestId, "Approved");
+                  }}
+                  style={{
+                    backgroundColor: "#52c41a",
+                    borderColor: "#52c41a",
+                    color: "#fff",
+                  }}
+                >
+                  Duyệt
+                </Button>
+              </Tooltip>
+              <Button
+                danger
+                loading={actionLoading === requestId}
+                onClick={() => {
+                  console.log("Rejecting Request:", requestId, record);
+                  handleUpdateStatus(requestId, "Rejected");
+                }}
+              >
+                Từ chối
+              </Button>
+            </Space>
+          );
+        }
+
+        // Nếu không phải Pending, hiển thị "Đã xử lý"
         return (
-          <Space size="middle">
-            <Button
-              type="primary"
-              className="btn-success"
-              loading={actionLoading === requestId}
-              onClick={() => {
-                console.log("Action on Request:", requestId, record);
-                handleUpdateStatus(requestId, "Approved");
-              }}
-            >
-              Duyệt
-            </Button>
-            <Button
-              danger
-              loading={actionLoading === requestId}
-              onClick={() => {
-                console.log("Rejecting Request:", requestId, record);
-                handleUpdateStatus(requestId, "Rejected");
-              }}
-            >
-              Từ chối
-            </Button>
-          </Space>
+          <Tag color="success" style={{ fontSize: "0.85rem", padding: "0.4rem 0.8rem" }}>
+            ✓ Đã xử lý
+          </Tag>
         );
       },
     },
@@ -272,24 +327,104 @@ const AdoptionManager = () => {
         </div>
         <Button
           icon={<RefreshCw size={16} />}
-          onClick={fetchAdoptions}
+          onClick={() => fetchAdoptions(statusFilter)}
           loading={loading}
         >
           Làm mới
         </Button>
       </div>
 
+      <Card className="glass-card" style={{ marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <Text strong>Lọc theo trạng thái:</Text>
+          <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+            <Button
+              type={statusFilter === "all" ? "primary" : "default"}
+              danger={statusFilter === "all"}
+              onClick={() => {
+                setStatusFilter("all");
+              }}
+              style={{
+                backgroundColor: statusFilter === "all" ? "#ff4d4f" : "transparent",
+                borderColor: statusFilter === "all" ? "#ff4d4f" : "#d9d9d9",
+                color: statusFilter === "all" ? "#fff" : "#000",
+              }}
+            >
+              Tất cả
+            </Button>
+            <Button
+              type={statusFilter === "Pending" ? "primary" : "default"}
+              onClick={() => {
+                setStatusFilter("Pending");
+              }}
+              style={{
+                backgroundColor: statusFilter === "Pending" ? "#faad14" : "transparent",
+                borderColor: statusFilter === "Pending" ? "#faad14" : "#d9d9d9",
+                color: statusFilter === "Pending" ? "#fff" : "#000",
+              }}
+            >
+              Đang chờ
+            </Button>
+            <Button
+              type={statusFilter === "Approved" ? "primary" : "default"}
+              onClick={() => {
+                setStatusFilter("Approved");
+              }}
+              style={{
+                backgroundColor: statusFilter === "Approved" ? "#52c41a" : "transparent",
+                borderColor: statusFilter === "Approved" ? "#52c41a" : "#d9d9d9",
+                color: statusFilter === "Approved" ? "#fff" : "#000",
+              }}
+            >
+              Đã duyệt
+            </Button>
+            <Button
+              type={statusFilter === "Rejected" ? "primary" : "default"}
+              onClick={() => {
+                setStatusFilter("Rejected");
+              }}
+              style={{
+                backgroundColor: statusFilter === "Rejected" ? "#f5222d" : "transparent",
+                borderColor: statusFilter === "Rejected" ? "#f5222d" : "#d9d9d9",
+                color: statusFilter === "Rejected" ? "#fff" : "#000",
+              }}
+            >
+              Đã từ chối
+            </Button>
+            <Button
+              type={statusFilter === "AlreadyAdopted" ? "primary" : "default"}
+              onClick={() => {
+                setStatusFilter("AlreadyAdopted");
+              }}
+              style={{
+                backgroundColor: statusFilter === "AlreadyAdopted" ? "#1890ff" : "transparent",
+                borderColor: statusFilter === "AlreadyAdopted" ? "#1890ff" : "#d9d9d9",
+                color: statusFilter === "AlreadyAdopted" ? "#fff" : "#000",
+              }}
+            >
+              Đã được nhận nuôi
+            </Button>
+          </div>
+        </div>
+      </Card>
+
       <Card className="glass-card">
-        <Table
-          columns={columns}
-          dataSource={adoptions}
-          rowKey={(record, index) =>
-            record.adoptionRequestID || `adoption-${index}`
-          }
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-          scroll={{ x: 1000 }}
-        />
+        {adoptions.length === 0 && !loading ? (
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            <Text type="secondary">Không có yêu cầu nhận nuôi</Text>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={adoptions}
+            rowKey={(record, index) =>
+              record.adoptionRequestID || `adoption-${index}`
+            }
+            loading={loading}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 1000 }}
+          />
+        )}
       </Card>
     </div>
   );

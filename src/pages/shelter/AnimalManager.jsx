@@ -199,7 +199,15 @@ const AnimalManager = () => {
                   gap: "0.5rem",
                 }}
               >
-                <Tag color={option.color}>{option.label}</Tag>
+                <Tag
+                  style={{
+                    backgroundColor: option.bgColor,
+                    color: "#fff",
+                    borderColor: option.bgColor,
+                  }}
+                >
+                  {option.label}
+                </Tag>
                 {pet.status === option.value && (
                   <span style={{ marginLeft: "auto", color: "#8c8c8c" }}>
                     (hiện tại)
@@ -225,7 +233,13 @@ const AnimalManager = () => {
 
   const getStatusDisplay = (status) => {
     const statusObj = PET_STATUS_OPTIONS.find((s) => s.value === status);
-    return statusObj || { label: status, color: "default" };
+    if (!statusObj) return { label: status, color: "default", bgColor: "#d9d9d9" };
+    return {
+      label: statusObj.label,
+      color: statusObj.bgColor,
+      textColor: "#fff",
+      borderColor: statusObj.bgColor,
+    };
   };
 
   return (
@@ -303,6 +317,15 @@ const AnimalManager = () => {
                     setPagination((prev) => ({ ...prev, page: 1 }));
                   }}
                   size="middle"
+                  style={
+                    filter === status.value
+                      ? {
+                        backgroundColor: status.bgColor,
+                        borderColor: status.bgColor,
+                        color: "#fff",
+                      }
+                      : {}
+                  }
                 >
                   {status.label}
                 </Button>
@@ -320,6 +343,10 @@ const AnimalManager = () => {
                 <Badge.Ribbon
                   text={statusDisplay.label}
                   color={statusDisplay.color}
+                  style={{
+                    backgroundColor: statusDisplay.color,
+                    color: statusDisplay.textColor,
+                  }}
                 >
                   <Card
                     hoverable

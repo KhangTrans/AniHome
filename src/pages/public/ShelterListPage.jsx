@@ -51,12 +51,14 @@ const ShelterListPage = () => {
         // Map data từ backend structure sang frontend structure
         const mappedShelters = (result.data.items || []).map((shelter) => {
           console.log("🏥 Shelter Data:", shelter);
+          // Đếm chỉ Available + InTreatment
+          const availableAndInTreatment = (shelter.availableCount || 0) + (shelter.inTreatmentCount || 0);
           return {
             id: shelter.shelterID,
             name: shelter.shelterName,
             address: shelter.location,
             region: shelter.regionName,
-            animalCount: shelter.totalPets || shelter.petCount || 0,
+            animalCount: availableAndInTreatment,
             image:
               (shelter.imageUrls && shelter.imageUrls[0]) ||
               shelter.imageURL ||
@@ -281,151 +283,162 @@ const ShelterListPage = () => {
                   </p>
                 </div>
               ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(350px, 1fr))",
-                    gap: "2rem",
-                  }}
-                >
-                  {shelters.map((shelter, index) => (
-                    <div
-                      key={shelter?.id || `shelter-${index}`}
-                      style={{
-                        background: "white",
-                        borderRadius: "16px",
-                        overflow: "hidden",
-                        border: "none",
-                        animationDelay: `${index * 50}ms`,
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "100%",
-                      }}
-                      className="card hover-lift group animate-fadeIn"
-                    >
+                <>
+                  <h2
+                    style={{
+                      fontSize: "2rem",
+                      fontWeight: "bold",
+                      marginBottom: "2rem",
+                    }}
+                  >
+                    Danh Sách Trạm ({totalCount})
+                  </h2>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(350px, 1fr))",
+                      gap: "2rem",
+                    }}
+                  >
+                    {shelters.map((shelter, index) => (
                       <div
+                        key={shelter?.id || `shelter-${index}`}
                         style={{
-                          height: "240px",
+                          background: "white",
+                          borderRadius: "16px",
                           overflow: "hidden",
-                          position: "relative",
+                          border: "none",
+                          animationDelay: `${index * 50}ms`,
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%",
                         }}
+                        className="card hover-lift group animate-fadeIn"
                       >
-                        <img
-                          src={shelter.image}
-                          alt={shelter.name}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src =
-                              "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80";
-                          }}
-                          className="card-img-zoom"
-                        />
                         <div
                           style={{
-                            position: "absolute",
-                            top: "12px",
-                            right: "12px",
-                            background: "rgba(255,255,255,0.9)",
-                            color: "var(--primary)",
-                            padding: "6px 12px",
-                            borderRadius: "20px",
-                            fontSize: "0.85rem",
-                            fontWeight: "bold",
-                            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                          }}
-                        >
-                          {shelter.animalCount} Bé
-                        </div>
-                      </div>
-                      <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", flex: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          <h3
-                            style={{
-                              fontSize: "1.4rem",
-                              margin: 0,
-                              fontWeight: 700,
-                              color: "var(--dark)",
-                            }}
-                          >
-                            {shelter.name}
-                          </h3>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            color: "#6b7280",
-                            marginBottom: "1rem",
-                            fontSize: "0.95rem",
-                          }}
-                        >
-                          <MapPin size={16} color="var(--primary)" />{" "}
-                          {shelter.address}
-                          <span
-                            style={{
-                              height: "4px",
-                              width: "4px",
-                              borderRadius: "50%",
-                              background: "#ccc",
-                              margin: "0 4px",
-                            }}
-                          ></span>
-                          <span
-                            style={{
-                              color: "var(--secondary)",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {shelter.region}
-                          </span>
-                        </div>
-                        <p
-                          style={{
-                            color: "#4b5563",
-                            marginBottom: "0",
-                            lineHeight: "1.6",
-                            fontSize: "1rem",
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
+                            height: "240px",
                             overflow: "hidden",
-                            flex: 1,
+                            position: "relative",
                           }}
                         >
-                          {shelter.description}
-                        </p>
+                          <img
+                            src={shelter.image}
+                            alt={shelter.name}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src =
+                                "https://images.unsplash.com/photo-1583337130417-3346a1be7dee?auto=format&fit=crop&w=800&q=80";
+                            }}
+                            className="card-img-zoom"
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: "12px",
+                              right: "12px",
+                              background: "rgba(255,255,255,0.9)",
+                              color: "var(--primary)",
+                              padding: "6px 12px",
+                              borderRadius: "20px",
+                              fontSize: "0.85rem",
+                              fontWeight: "bold",
+                              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                            }}
+                          >
+                            {shelter.animalCount} Bé
+                          </div>
+                        </div>
+                        <div style={{ padding: "1.5rem", display: "flex", flexDirection: "column", flex: 1 }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              marginBottom: "0.5rem",
+                            }}
+                          >
+                            <h3
+                              style={{
+                                fontSize: "1.4rem",
+                                margin: 0,
+                                fontWeight: 700,
+                                color: "var(--dark)",
+                              }}
+                            >
+                              {shelter.name}
+                            </h3>
+                          </div>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              color: "#6b7280",
+                              marginBottom: "1rem",
+                              fontSize: "0.95rem",
+                            }}
+                          >
+                            <MapPin size={16} color="var(--primary)" />{" "}
+                            {shelter.address}
+                            <span
+                              style={{
+                                height: "4px",
+                                width: "4px",
+                                borderRadius: "50%",
+                                background: "#ccc",
+                                margin: "0 4px",
+                              }}
+                            ></span>
+                            <span
+                              style={{
+                                color: "var(--secondary)",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {shelter.region}
+                            </span>
+                          </div>
+                          <p
+                            style={{
+                              color: "#4b5563",
+                              marginBottom: "0",
+                              lineHeight: "1.6",
+                              fontSize: "1rem",
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              flex: 1,
+                            }}
+                          >
+                            {shelter.description}
+                          </p>
 
-                        <Link
-                          to={`/shelters/${shelter.id}`}
-                          className="btn btn-outline hover:bg-primary hover:text-white hover:border-primary transition-colors"
-                          style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            width: "100%",
-                            padding: "0.8rem 1.5rem",
-                            borderRadius: "12px",
-                            fontWeight: 600,
-                            marginTop: "auto",
-                            fontSize: "1rem",
-                          }}
-                        >
-                          Ghé Thăm Trạm <ArrowRight size={18} />
-                        </Link>
+                          <Link
+                            to={`/shelters/${shelter.id}`}
+                            className="btn btn-outline hover:bg-primary hover:text-white hover:border-primary transition-colors"
+                            style={{
+                              display: "flex",
+                              justifyContent: "center",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              width: "100%",
+                              padding: "0.8rem 1.5rem",
+                              borderRadius: "12px",
+                              fontWeight: 600,
+                              marginTop: "auto",
+                              fontSize: "1rem",
+                            }}
+                          >
+                            Ghé Thăm Trạm <ArrowRight size={18} />
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                </>
               )}
 
               {/* Pagination */}
@@ -433,7 +446,7 @@ const ShelterListPage = () => {
                 <Pagination
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  totalCount={totalCount}
+                  totalCount={shelters.length}
                   onPageChange={handlePageChange}
                 />
               )}

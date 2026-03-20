@@ -13,6 +13,7 @@ import axiosInstance from '../axiosConfig';
  * @param {string} params.keyword - Tìm kiếm theo tên (optional)
  * @param {number} params.categoryId - Lọc theo loại (optional)
  * @param {number} params.shelterId - Lọc theo shelter (optional)
+ * @param {string} params.status - Lọc theo trạng thái (optional, ex: "Available" hoặc "Available,InTreatment")
  * @param {number} params.page - Trang hiện tại (default: 1)
  * @param {number} params.pageSize - Số lượng mỗi trang (default: 9)
  */
@@ -24,11 +25,12 @@ export const getPets = async (params = {}) => {
       ...(params.keyword && { keyword: params.keyword }),
       ...(params.categoryId && { categoryId: params.categoryId }),
       ...(params.shelterId && { shelterId: params.shelterId }),
+      ...(params.status && { status: params.status }),
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
     const response = await axiosInstance.get(`/pets?${queryString}`);
-    
+
     return {
       success: true,
       data: response.data,
@@ -50,7 +52,7 @@ export const getPets = async (params = {}) => {
 export const getPetById = async (id) => {
   try {
     const response = await axiosInstance.get(`/pets/${id}`);
-    
+
     return {
       success: true,
       data: response.data,
@@ -59,6 +61,67 @@ export const getPetById = async (id) => {
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to fetch pet details',
+    };
+  }
+};
+
+/**
+ * GET /api/pets/available
+ * Lấy danh sách tất cả pet có sẵn (Available + InTreatment) với pagination
+ * 
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Trang hiện tại (default: 1)
+ * @param {number} params.pageSize - Số lượng mỗi trang (default: 12)
+ */
+export const getAvailablePets = async (params = {}) => {
+  try {
+    const queryParams = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 12,
+    };
+
+    const queryString = new URLSearchParams(queryParams).toString();
+    const response = await axiosInstance.get(`/pets/available?${queryString}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to fetch available pets',
+    };
+  }
+};
+
+/**
+ * GET /api/pets/shelter/{shelterId}/available
+ * Lấy danh sách pet có sẵn (Available + InTreatment) của trạm với pagination
+ * 
+ * @param {number} shelterId - Shelter ID
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Trang hiện tại (default: 1)
+ * @param {number} params.pageSize - Số lượng mỗi trang (default: 9)
+ */
+export const getAvailablePetsByShelter = async (shelterId, params = {}) => {
+  try {
+    const queryParams = {
+      page: params.page || 1,
+      pageSize: params.pageSize || 9,
+    };
+
+    const queryString = new URLSearchParams(queryParams).toString();
+    const response = await axiosInstance.get(`/pets/shelter/${shelterId}/available?${queryString}`);
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || 'Failed to fetch available pets',
     };
   }
 };
@@ -79,17 +142,17 @@ export const getPetStatusBadge = (status) => {
  */
 export const formatPetAge = (ageInMonths) => {
   if (!ageInMonths) return 'Chưa rõ';
-  
+
   if (ageInMonths < 12) {
     return `${ageInMonths} tháng`;
   }
-  
+
   const years = Math.floor(ageInMonths / 12);
   const months = ageInMonths % 12;
-  
+
   if (months === 0) {
     return `${years} tuổi`;
   }
-  
+
   return `${years} tuổi ${months} tháng`;
 };
