@@ -11,6 +11,7 @@ import {
   Typography,
   Tooltip,
   Image,
+  Radio,
 } from "antd";
 import {
   MapPin,
@@ -40,15 +41,16 @@ const RegionalRescueManager = () => {
   const [processStatus, setProcessStatus] = useState(null); // 1: Agree, 2: Refuse
   const [notes, setNotes] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all"); // all, Pending, Approved, Rejected
   const { user } = useAuth();
 
   useEffect(() => {
     fetchRequests();
   }, []);
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (filterStatus = null) => {
     setLoading(true);
-    const result = await getRegionalRequests();
+    const result = await getRegionalRequests(filterStatus);
     if (result.success) {
       setRequests(result.data);
     } else {
@@ -57,7 +59,17 @@ const RegionalRescueManager = () => {
     setLoading(false);
   };
 
+  const handleStatusFilterChange = (e) => {
+    const newStatus = e.target.value;
+    setStatusFilter(newStatus);
+    // Fetch data with the selected status filter
+    fetchRequests(newStatus === "all" ? null : newStatus);
+  };
+
   const handleOpenProcessModal = (request, status) => {
+    console.log("[DEBUG] Modal opened with request:", request);
+    console.log("[DEBUG] RequestID value:", request.RequestID);
+    console.log("[DEBUG] All keys:", Object.keys(request));
     setSelectedRequest(request);
     setProcessStatus(status);
     setNotes(
@@ -74,9 +86,12 @@ const RegionalRescueManager = () => {
       return;
     }
 
+    console.log("[DEBUG] Submitting with selectedRequest:", selectedRequest);
+    console.log("[DEBUG] requestID to send:", selectedRequest.requestID);
+
     setProcessing(true);
-    const result = await processRescueRequest(selectedRequest.requestId, {
-      status: processStatus,
+    const result = await processRescueRequest(selectedRequest.requestID, {
+      action: processStatus === 1 ? "Approved" : "Rejected",
       notes: notes,
     });
 
@@ -96,18 +111,21 @@ const RegionalRescueManager = () => {
 
   const getStatusTag = (status) => {
     switch (status) {
+      case "Pending":
       case 0:
         return (
           <Tag icon={<Clock size={12} />} color="warning">
             Chờ xử lý
           </Tag>
         );
+      case "Approved":
       case 1:
         return (
           <Tag icon={<CheckCircle size={12} />} color="success">
             Đã tiếp nhận
           </Tag>
         );
+      case "Rejected":
       case 2:
         return (
           <Tag icon={<XCircle size={12} />} color="error">
@@ -118,6 +136,11 @@ const RegionalRescueManager = () => {
         return <Tag color="default">Không xác định</Tag>;
     }
   };
+
+  // Filter requests based on selected status
+  const filteredRequests = statusFilter === "all"
+    ? requests
+    : requests.filter(r => r.status === statusFilter);
 
   const columns = [
     {
@@ -197,7 +220,7 @@ const RegionalRescueManager = () => {
       key: "actions",
       width: 150,
       render: (_, record) =>
-        record.status === 0 ? (
+        record.status === "Pending" || record.status === 0 ? (
           <Space>
             <Tooltip title="Tiếp nhận">
               <Button
@@ -247,11 +270,23 @@ const RegionalRescueManager = () => {
       </div>
 
       <Card className="shadow-sm border-none rounded-2xl overflow-hidden">
+        <div className="mb-4 flex items-center gap-4">
+          <span className="font-medium text-gray-700">Lọc theo trạng thái:</span>
+          <Radio.Group
+            value={statusFilter}
+            onChange={handleStatusFilterChange}
+          >
+            <Radio.Button value="all">Tất cả</Radio.Button>
+            <Radio.Button value="Pending">Chờ xử lý</Radio.Button>
+            <Radio.Button value="Approved">Đã tiếp nhận</Radio.Button>
+            <Radio.Button value="Rejected">Đã từ chối</Radio.Button>
+          </Radio.Group>
+        </div>
         <Table
           columns={columns}
-          dataSource={requests}
+          dataSource={filteredRequests}
           loading={loading}
-          rowKey="requestId"
+          rowKey="requestID"
           pagination={{ pageSize: 10 }}
           className="rescue-table"
         />

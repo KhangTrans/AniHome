@@ -11,10 +11,15 @@ export const submitRescueRequest = async (payload) => {
 
 /**
  * Lấy danh sách yêu cầu cứu hộ theo khu vực của trạm (RoleID 2)
+ * @param {string} status - Optional filter by status (Pending, Approved, Rejected)
  */
-export const getRegionalRequests = async () => {
+export const getRegionalRequests = async (status = null) => {
   try {
-    const response = await axiosInstance.get('/Surrender/regional-requests');
+    let url = '/Surrender/regional-requests';
+    if (status) {
+      url += `?status=${status}`;
+    }
+    const response = await axiosInstance.get(url);
     return {
       success: true,
       data: response.data
