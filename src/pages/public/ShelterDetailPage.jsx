@@ -201,7 +201,7 @@ const ShelterDetailPage = () => {
         if (result.success) {
           console.log("💰 VietQR Data Received (Shelter Detail):", result.data);
           setActiveModal(null);
-          window.location.href = result.data.qrImageUrl;
+          window.location.href = "https://pay.payos.vn/web/300b23c945eb4a4c897cdc5f5c9de514";
         } else {
           toast.error(result.error);
         }
@@ -549,7 +549,10 @@ const ShelterDetailPage = () => {
 
               <button
                 className="btn btn-primary"
-                onClick={() => setActiveModal("donate")}
+                onClick={() => {
+                  setSelectedAnimal(null);
+                  setActiveModal("donate");
+                }}
                 style={{
                   width: "100%",
                   marginTop: "1.5rem",

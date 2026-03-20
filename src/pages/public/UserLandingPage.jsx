@@ -2,13 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   Heart,
-  Bell,
-  User,
-  LogIn,
-  LayoutDashboard,
-  CreditCard,
   CheckCircle,
-  PawPrint,
   Calendar,
   Mail,
   ArrowRight,
@@ -27,7 +21,6 @@ import { getShelters } from "../../services/public/sheltersService";
 import {
   createVNPayDonation,
   createVietQRDonation,
-  checkVietQRStatus,
   getCurrentUserId,
   redirectToVNPay,
   DONATION_PRESETS,
@@ -40,7 +33,7 @@ import {
 } from "../../services/public/postsService";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
-import { QrCode, Copy, Loader2 } from "lucide-react";
+import { QrCode, CreditCard } from "lucide-react";
 
 const UserLandingPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -48,7 +41,7 @@ const UserLandingPage = () => {
   const toast = useToast();
 
   // Modal States
-  const [activeModal, setActiveModal] = useState(null); // 'adoptForm', 'donate', 'success', 'success_donate'
+  const [activeModal, setActiveModal] = useState(null); // 'adoptForm', 'donate'
   const [selectedAnimal, setSelectedAnimal] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -65,10 +58,7 @@ const UserLandingPage = () => {
   const [donationMessage, setDonationMessage] = useState("");
   const [isDonating, setIsDonating] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("vnpay"); // 'vnpay' or 'vietqr'
-  const [qrData, setQrData] = useState(null);
-  const [isPolling, setIsPolling] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const pollingIntervalRef = React.useRef(null);
   const dropdownRef = useRef(null);
 
   // API States
@@ -80,12 +70,6 @@ const UserLandingPage = () => {
   const [_error, setError] = useState(null);
 
   const carouselRef = useRef(null);
-
-  // Handle page change
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
 
   // Fetch pets and shelters from API
   useEffect(() => {
@@ -99,11 +83,10 @@ const UserLandingPage = () => {
         setHomeStats(statsResult.data);
       }
 
-      // Fetch pets with current page number
-      const result = await getPets({ page: currentPage, pageSize: 12 });
+      // Fetch pets with Pagination
+      const result = await getPets({ page: currentPage, pageSize: pageSize });
 
       if (result.success) {
-        // Map backend data structure to frontend format
         const mappedAnimals = (result.data.items || []).map((pet) => ({
           id: pet.petID,
           name: pet.petName,
@@ -114,26 +97,18 @@ const UserLandingPage = () => {
           description:
             pet.description ||
             `${pet.petName} là một ${pet.breed} đang tìm mái ấm mới.`,
-          // Keep original fields for API calls
           petID: pet.petID,
           petName: pet.petName,
         }));
         setAnimals(mappedAnimals);
 
-        // Calculate pagination - use totalPages or totalCount from API
-        const apiTotalPages = result.data.totalPages;
-        if (apiTotalPages) {
-          setTotalPages(apiTotalPages);
-        } else {
-          const totalCount = result.data.totalCount || mappedAnimals.length;
-          setTotalPages(Math.ceil(totalCount / pageSize));
-        }
+        setTotalPages(result.data.totalPages || 1);
       } else {
         setError(result.error);
         toast.error("Failed to load pets: " + result.error);
       }
 
-      // Fetch partner shelters (limit 5 for carousel)
+      // Fetch partner shelters
       const sheltersResult = await getShelters({ page: 1, pageSize: 5 });
       if (sheltersResult.success) {
         const mappedShelters = (sheltersResult.data.items || []).map(
@@ -157,9 +132,6 @@ const UserLandingPage = () => {
           },
         );
         setPartners(mappedShelters);
-      } else {
-        console.warn("Failed to load partners:", sheltersResult.error);
-        setPartners([]);
       }
 
       // Fetch happy stories
@@ -172,7 +144,7 @@ const UserLandingPage = () => {
     };
 
     fetchData();
-  }, [toast, currentPage]);
+  }, [toast, currentPage]); // Added currentPage to dependency array
 
   // Handle outside click to close dropdown
   useEffect(() => {
@@ -190,14 +162,13 @@ const UserLandingPage = () => {
     if (!scrollContainer) return;
 
     const scrollInterval = setInterval(() => {
-      // Auto-scroll logic to loop back or scroll next
       if (
         Math.ceil(scrollContainer.scrollLeft + scrollContainer.clientWidth) >=
         scrollContainer.scrollWidth
       ) {
         scrollContainer.scrollTo({ left: 0, behavior: "smooth" });
       } else {
-        scrollContainer.scrollBy({ left: 299, behavior: "smooth" }); // 275px width + 24px gap
+        scrollContainer.scrollBy({ left: 299, behavior: "smooth" });
       }
     }, 3000);
 
@@ -214,12 +185,6 @@ const UserLandingPage = () => {
     return matchesSearch && matchesCategory;
   });
 
-  // Recalculate totalPages based on filtered animals (for client-side filtering)
-  const filteredTotalPages =
-    categoryFilter !== "All" || searchTerm
-      ? Math.ceil(filteredAnimals.length / pageSize)
-      : totalPages;
-
   const handleAction = (type, animal) => {
     setSelectedAnimal(animal);
     if (type === "adopt") {
@@ -229,7 +194,6 @@ const UserLandingPage = () => {
       }
       setActiveModal("adoptForm");
     } else if (type === "donate") {
-      // Reset donation form
       setDonationAmount(50000);
       setDonationMessage("");
       setActiveModal("donate");
@@ -240,15 +204,9 @@ const UserLandingPage = () => {
     }
   };
 
-  // Reset page when filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [categoryFilter, searchTerm]);
-
   const handleDonate = async (e) => {
     e.preventDefault();
 
-    // Get pet ID (đã map sẵn từ backend)
     const petID = selectedAnimal?.petID || selectedAnimal?.id;
     const petName =
       selectedAnimal?.petName || selectedAnimal?.name || "pet này";
@@ -258,7 +216,6 @@ const UserLandingPage = () => {
       return;
     }
 
-    // Validation
     if (!donationAmount || donationAmount < 1000) {
       toast.error("Số tiền tối thiểu là 1,000đ");
       return;
@@ -289,7 +246,7 @@ const UserLandingPage = () => {
           );
         }
       } else {
-        // VietQR Flow
+        // --- CHUYỂN HƯỚNG PAYOS VIETQR TRỰC TIẾP GIỐNG SHELTER DETAIL ---
         const result = await createVietQRDonation({
           petID: petID,
           userID: getCurrentUserId(),
@@ -300,11 +257,11 @@ const UserLandingPage = () => {
 
         if (result.success) {
           console.log("💰 VietQR Data Received (Landing):", result.data);
-          setQrData(result.data);
-          setActiveModal("vietqr_modal");
-          startPolling(result.data.transactionID || result.data.TransactionID);
+          setActiveModal(null);
+          // Redirect thẳng tới URL trả về từ API (PayOS checkout url hoặc hình ảnh QR)
+          window.location.href = result.data.qrImageUrl || result.data.checkoutUrl;
         } else {
-          toast.error(result.error || "Không thể tạo mã QR. Vui lòng thử lại.");
+          toast.error(result.error || "Không thể tạo kết nối chuyển khoản. Vui lòng thử lại.");
         }
       }
     } catch {
@@ -312,41 +269,6 @@ const UserLandingPage = () => {
     } finally {
       setIsDonating(false);
     }
-  };
-
-  const startPolling = (transactionID) => {
-    // Clear any existing polling first
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-
-    setIsPolling(true);
-    const interval = setInterval(async () => {
-      const result = await checkVietQRStatus(transactionID);
-      if (result.success && result.data.status === "Success") {
-        clearInterval(interval);
-        pollingIntervalRef.current = null;
-        setIsPolling(false);
-        setActiveModal(null);
-        toast.success("Thanh toán thành công! Cảm ơn bạn đã quyên góp.");
-      }
-    }, 10000);
-
-    pollingIntervalRef.current = interval;
-
-    // Stop after 10 mins
-    setTimeout(() => {
-      if (pollingIntervalRef.current === interval) {
-        clearInterval(interval);
-        pollingIntervalRef.current = null;
-        setIsPolling(false);
-      }
-    }, 600000);
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Đã sao chép nội dung chuyển khoản");
   };
 
   return (
@@ -371,7 +293,7 @@ const UserLandingPage = () => {
           borderRadius: "0 0 50px 50px",
           marginBottom: "6rem",
           position: "relative",
-          zIndex: 20, /* Ensure header content is above the stats section that pulls up */
+          zIndex: 20,
         }}
         className="animate-fadeIn"
       >
@@ -478,7 +400,6 @@ const UserLandingPage = () => {
       {/* --- Stats Section --- */}
       <section className="stats-section animate-slideUp delay-200">
         <div className="stats-grid">
-
           <div className="stat-item hover-lift">
             <h3 className="stat-value primary">
               {homeStats ? homeStats.totalRescuedPets : "..."}
@@ -499,7 +420,6 @@ const UserLandingPage = () => {
             </h3>
             <p className="stat-label">Trạm cứu hộ hoạt động</p>
           </div>
-
         </div>
       </section>
 
@@ -545,7 +465,6 @@ const UserLandingPage = () => {
           </div>
 
           <div className="pet-grid">
-
             {filteredAnimals.map((animal, index) => (
               <div
                 key={animal.id}
@@ -560,13 +479,18 @@ const UserLandingPage = () => {
             ))}
           </div>
 
-          {/* Pagination */}
-          {filteredTotalPages > 1 && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={filteredTotalPages}
-              onPageChange={handlePageChange}
-            />
+          {/* Phân Trang */}
+          {totalPages > 1 && (
+            <div style={{ marginTop: "3rem", display: "flex", justifyContent: "center" }}>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={(page) => {
+                  setCurrentPage(page);
+                  document.getElementById("featured").scrollIntoView({ behavior: "smooth" });
+                }}
+              />
+            </div>
           )}
         </section>
 
@@ -575,7 +499,6 @@ const UserLandingPage = () => {
           id="how-it-works"
           className="how-it-works-section"
         >
-
           <div
             style={{
               position: "absolute",
@@ -588,7 +511,6 @@ const UserLandingPage = () => {
             }}
           ></div>
           <div className="how-it-works-header">
-
             <h3
               style={{
                 fontSize: "2.5rem",
@@ -803,7 +725,6 @@ const UserLandingPage = () => {
         {/* Happy Stories Section */}
         {happyStories && happyStories.length > 0 && (
           <section className="happy-stories-section">
-
             <div style={{ textAlign: "center", marginBottom: "3rem" }}>
               <div
                 style={{
@@ -845,7 +766,6 @@ const UserLandingPage = () => {
             </div>
 
             <div className="stories-grid">
-
               {happyStories.slice(0, 3).map((story) => {
                 let imageUrl =
                   "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80";
@@ -1035,6 +955,7 @@ const UserLandingPage = () => {
         />
       )}
 
+      {/* Donate Modal */}
       <Modal
         isOpen={activeModal === "donate"}
         onClose={() => setActiveModal(null)}
@@ -1276,223 +1197,6 @@ const UserLandingPage = () => {
         </form>
       </Modal>
 
-      <Modal
-        isOpen={activeModal === "vietqr_modal"}
-        onClose={() => setActiveModal(null)}
-        title="Thanh toán qua VietQR"
-      >
-        <div style={{ textAlign: "center" }}>
-          <p
-            style={{
-              fontSize: "0.875rem",
-              color: "#4b5563",
-              marginBottom: "1rem",
-            }}
-          >
-            Dùng ứng dụng ngân hàng quét mã QR bên dưới
-          </p>
-
-          <div
-            style={{
-              background: "white",
-              padding: "1rem",
-              borderRadius: "1rem",
-              boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-              marginBottom: "1rem",
-            }}
-          >
-            {qrData?.qrImageUrl || qrData?.QrImageUrl ? (
-              <img
-                src={`https://images.weserv.nl/?url=${encodeURIComponent(qrData.qrImageUrl || qrData.QrImageUrl)}&t=${Date.now()}`}
-                alt="QR Code"
-                referrerPolicy="no-referrer"
-                style={{
-                  width: "100%",
-                  maxWidth: "300px",
-                  margin: "0 auto",
-                  display: "block",
-                }}
-                onLoad={() => {
-                  const manualDiv = document.getElementById(
-                    "manual-payment-info",
-                  );
-                  if (manualDiv) manualDiv.style.display = "none";
-                }}
-                onError={(e) => {
-                  console.error("QR Image Load Failed even with proxy");
-                  e.target.style.display = "none";
-                  const manualDiv = document.getElementById(
-                    "manual-payment-info",
-                  );
-                  if (manualDiv) manualDiv.style.display = "block";
-                }}
-              />
-            ) : null}
-
-            <div
-              id="manual-payment-info"
-              style={{
-                display:
-                  qrData?.qrImageUrl || qrData?.QrImageUrl ? "none" : "block",
-                padding: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  background: "#f8fafc",
-                  border: "1px dashed #cbd5e1",
-                  borderRadius: "0.75rem",
-                  padding: "1rem",
-                }}
-              >
-                <p
-                  style={{
-                    color: "#ef4444",
-                    fontWeight: "600",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  ⚠️ Không thể tải mã QR
-                </p>
-                <div
-                  style={{
-                    textAlign: "left",
-                    fontSize: "0.9rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                  }}
-                >
-                  <div>
-                    <strong>Ngân hàng:</strong> MB Bank (Quân Đội)
-                  </div>
-                  <div>
-                    <strong>Số tài khoản:</strong>{" "}
-                    <span style={{ color: "#1e40af", fontWeight: "bold" }}>
-                      130072004
-                    </span>
-                  </div>
-                  <div>
-                    <strong>Chủ tài khoản:</strong> NGUYEN HOANG SANG
-                  </div>
-                  <div>
-                    <strong>Số tiền:</strong>{" "}
-                    <span style={{ color: "#15803d", fontWeight: "bold" }}>
-                      {donationAmount.toLocaleString()} VNĐ
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.open(
-                      qrData.qrImageUrl || qrData.QrImageUrl,
-                      "_blank",
-                    )
-                  }
-                  style={{
-                    marginTop: "1rem",
-                    width: "100%",
-                    padding: "0.5rem",
-                    background: "#3b82f6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "0.5rem",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Mở mã QR trong tab mới ↗
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "#f8fafc",
-              border: "1px solid #e2e8f0",
-              borderRadius: "0.75rem",
-              padding: "1rem",
-              marginBottom: "1rem",
-              textAlign: "left",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "#64748b",
-                marginBottom: "4px",
-              }}
-            >
-              Nội dung chuyển khoản
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "bold",
-                  color: "#1e293b",
-                }}
-              >
-                {qrData?.transferMessage || qrData?.TransferMessage}
-              </span>
-              <button
-                onClick={() =>
-                  copyToClipboard(
-                    qrData?.transferMessage || qrData?.TransferMessage,
-                  )
-                }
-                style={{
-                  background: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "0.5rem",
-                  padding: "0.5rem 0.75rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  cursor: "pointer",
-                }}
-              >
-                <Copy size={16} /> Sao chép
-              </button>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              color: "#15803d",
-              background: "#f0fdf4",
-              padding: "0.75rem",
-              borderRadius: "0.75rem",
-              fontSize: "0.875rem",
-              marginBottom: "1rem",
-            }}
-          >
-            {isPolling && <Loader2 className="animate-spin" size={16} />}
-            <span>Đang chờ bạn thanh toán...</span>
-          </div>
-
-          <button
-            onClick={() => setActiveModal(null)}
-            className="btn btn-primary"
-            style={{ width: "100%", justifyContent: "center" }}
-          >
-            Tôi đã chuyển khoản
-          </button>
-        </div>
-      </Modal>
       <style>{`
         .landing-main-content {
           max-width: 1200px;
@@ -1853,8 +1557,6 @@ const UserLandingPage = () => {
           }
         }
       `}</style>
-
-
     </div>
   );
 };
