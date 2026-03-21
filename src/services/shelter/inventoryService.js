@@ -57,13 +57,11 @@ export const getShelterInventory = async (shelterId, params = {}) => {
 export const addInventoryItem = async (shelterId, inventoryData) => {
   try {
     const response = await axiosInstance.post(`/manage-shelter/${shelterId}/inventory`, {
+      categoryID: Number(inventoryData.categoryID),
       itemName: inventoryData.itemName,
-      category: inventoryData.category,
-      quantity: inventoryData.quantity,
+      quantity: Number(inventoryData.quantity),
       unit: inventoryData.unit,
-      minStockLevel: inventoryData.minStockLevel,
-      description: inventoryData.description || '',
-      expiryDate: inventoryData.expiryDate || null,
+      minRequired: Number(inventoryData.minRequired),
     });
     
     return {
@@ -91,7 +89,7 @@ export const updateInventoryStock = async (shelterId, supplyId, quantity) => {
   try {
     const response = await axiosInstance.patch(
       `/manage-shelter/${shelterId}/inventory/${supplyId}/stock`,
-      { quantity }
+      { newQuantity: Number(quantity) }
     );
     
     return {
@@ -103,6 +101,176 @@ export const updateInventoryStock = async (shelterId, supplyId, quantity) => {
     return {
       success: false,
       error: error.response?.data?.message || 'Failed to update stock',
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/store/stats
+ * Lấy thống kê Kho & Cửa Hàng
+ */
+export const getStoreStats = async (shelterId, month, year) => {
+  try {
+    const params = {};
+    if (month) params.month = month;
+    if (year) params.year = year;
+
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/store/stats`,
+      { params },
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to fetch store stats",
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/store/supplies
+ * Lấy danh sách vật phẩm nội bộ
+ */
+export const getStoreSupplies = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/store/supplies`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to fetch supplies list",
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/store/products
+ * Lấy danh sách sản phẩm gây quỹ của shelter
+ */
+export const getStoreProducts = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/store/products`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to fetch products list",
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/store/subscription/packages
+ * Lấy danh sách gói đăng ký cho Shelter Manager
+ */
+export const getShelterSubscriptionPackages = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/store/subscription/packages`,
+    );
+
+    return {
+      success: true,
+      data: Array.isArray(response.data) ? response.data : [],
+    };
+  } catch (error) {
+    return {
+      success: false,
+      data: [],
+      error: error.response?.data?.message || "Failed to fetch subscription packages",
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/store/subscription/status
+ * Lấy trạng thái gói đăng ký hiện tại của shelter
+ */
+export const getShelterSubscriptionStatus = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/store/subscription/status`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to fetch subscription status",
+    };
+  }
+};
+
+/**
+ * POST /api/manage-shelter/{shelterId}/store/subscription/packages/{packageId}/subscribe
+ * Đăng ký hoặc nâng cấp gói cho shelter
+ */
+export const subscribeShelterPackage = async (shelterId, packageId) => {
+  try {
+    const response = await axiosInstance.post(
+      `/manage-shelter/${shelterId}/store/subscription/packages/${packageId}/subscribe`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message:
+        response.data?.message || response.data?.Message || "Đăng ký gói thành công",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error.response?.data?.message ||
+        error.response?.data?.Message ||
+        "Không thể đăng ký gói",
+    };
+  }
+};
+
+/**
+ * POST /api/manage-shelter/{shelterId}/store/subscription/cancel
+ * Hủy gói đăng ký hiện tại của shelter
+ */
+export const cancelShelterSubscription = async (shelterId) => {
+  try {
+    const response = await axiosInstance.post(
+      `/manage-shelter/${shelterId}/store/subscription/cancel`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message:
+        response.data?.message || response.data?.Message || "Hủy gói thành công",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error.response?.data?.message ||
+        error.response?.data?.Message ||
+        "Không thể hủy gói đăng ký",
     };
   }
 };

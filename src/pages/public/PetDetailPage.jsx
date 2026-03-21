@@ -2,11 +2,15 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { getPetById } from "../../services/public/petsService";
 import {
-  ArrowLeft,
+  getMarketplaceProductCountByShelter,
+  getMarketplaceProductsByShelter,
+} from "../../services/public/marketplaceService";
+import {
   MapPin,
   Heart,
   ChevronLeft,
   ChevronRight,
+  ShoppingBag,
 } from "lucide-react";
 import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
@@ -25,6 +29,10 @@ export default function PetDetailPage() {
   const [error, setError] = useState(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [showAdoptionModal, setShowAdoptionModal] = useState(false);
+  const [hasStoreProducts, setHasStoreProducts] = useState(false);
+  const [showStoreProducts, setShowStoreProducts] = useState(false);
+  const [storeProducts, setStoreProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
   const { user } = useAuth();
   const toast = useToast();
 
@@ -43,6 +51,44 @@ export default function PetDetailPage() {
     };
     fetchPetDetail();
   }, [id]);
+
+  useEffect(() => {
+    const checkStoreAvailability = async () => {
+      const shelterId = pet?.shelterID || pet?.shelterId;
+      if (!shelterId) {
+        setHasStoreProducts(false);
+        return;
+      }
+
+      const result = await getMarketplaceProductCountByShelter(shelterId);
+      setHasStoreProducts(result.success && Number(result.totalProducts) > 0);
+    };
+
+    if (pet) {
+      checkStoreAvailability();
+    }
+  }, [pet]);
+
+  const handleToggleStoreProducts = async () => {
+    const shelterId = pet?.shelterID || pet?.shelterId;
+    if (!shelterId) return;
+
+    if (showStoreProducts) {
+      setShowStoreProducts(false);
+      return;
+    }
+
+    setProductsLoading(true);
+    const result = await getMarketplaceProductsByShelter(shelterId);
+    setProductsLoading(false);
+
+    if (result.success) {
+      setStoreProducts(result.data || []);
+      setShowStoreProducts(true);
+    } else {
+      toast.error(result.error || "Không tải được sản phẩm của trạm");
+    }
+  };
 
   // ─── Helpers ────────────────────────────────────────────────
   const getImages = (pet) => {
@@ -415,7 +461,103 @@ export default function PetDetailPage() {
                     ? `Nhận nuôi ${pet.petName}`
                     : "Không khả dụng"}
                 </button>
+                {hasStoreProducts && (
+                  <button
+                    onClick={handleToggleStoreProducts}
+                    style={{
+                      padding: "14px 16px",
+                      background: showStoreProducts ? "#1d4ed8" : "white",
+                      color: showStoreProducts ? "white" : "#1d4ed8",
+                      border: "1px solid #93c5fd",
+                      borderRadius: "12px",
+                      fontSize: "0.95rem",
+                      fontWeight: "600",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <ShoppingBag size={17} />
+                    {showStoreProducts ? "Ẩn sản phẩm" : "Xem sản phẩm"}
+                  </button>
+                )}
               </div>
+
+              {showStoreProducts && (
+                <div
+                  style={{
+                    marginTop: "18px",
+                    background: "white",
+                    borderRadius: "12px",
+                    padding: "14px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "1rem",
+                      margin: "0 0 12px",
+                      color: "#1f2937",
+                    }}
+                  >
+                    Sản phẩm gây quỹ của trạm
+                  </h3>
+
+                  {productsLoading ? (
+                    <div style={{ color: "#6b7280" }}>Đang tải sản phẩm...</div>
+                  ) : storeProducts.length > 0 ? (
+                    <div style={{ display: "grid", gap: "10px" }}>
+                      {storeProducts.map((product) => (
+                        <div
+                          key={product.productID || product.ProductID}
+                          style={{
+                            border: "1px solid #e5e7eb",
+                            borderRadius: "10px",
+                            padding: "10px 12px",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 600, color: "#111827" }}>
+                              {product.productName || product.ProductName}
+                            </div>
+                            <div
+                              style={{
+                                color: "#6b7280",
+                                fontSize: "0.85rem",
+                                marginTop: 4,
+                              }}
+                            >
+                              {product.description ||
+                                product.Description ||
+                                "Sản phẩm gây quỹ"}
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              color: "#dc2626",
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {Number(
+                              product.price ?? product.Price ?? 0,
+                            ).toLocaleString("vi-VN")}
+                            ₫
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ color: "#6b7280" }}>
+                      Trạm chưa có sản phẩm gây quỹ.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

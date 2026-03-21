@@ -33,6 +33,28 @@ export const getShelterDashboard = async (shelterId) => {
 };
 
 /**
+ * GET /api/shelters/{shelterId}/dashboard/info
+ * Lấy thông tin cơ bản của shelter cho phần overview
+ */
+export const getShelterDashboardInfo = async (shelterId) => {
+  try {
+    const response = await axiosInstance.get(
+      `/shelters/${shelterId}/dashboard/info`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Failed to fetch shelter info",
+    };
+  }
+};
+
+/**
  * GET /api/manage-shelter/{shelterId}/profile
  * Lấy thông tin chi tiết hồ sơ trạm cứu hộ (Dành cho Quản lý trạm)
  */
@@ -82,6 +104,45 @@ export const updateShelterProfile = async (shelterId, profileData) => {
       success: false,
       error:
         error.response?.data?.message || "Failed to update shelter profile",
+    };
+  }
+};
+
+/**
+ * GET /api/manage-shelter/{shelterId}/donations/monthly-total
+ * Lấy tổng tiền quyên góp theo tháng của shelter
+ */
+export const getShelterMonthlyDonationTotal = async (
+  shelterId,
+  month,
+  year,
+) => {
+  try {
+    const params = {};
+    if (month) params.month = month;
+    if (year) params.year = year;
+
+    const response = await axiosInstance.get(
+      `/manage-shelter/${shelterId}/donations/monthly-total`,
+      { params },
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      totalAmount:
+        response.data?.totalAmount ??
+        response.data?.TotalAmount ??
+        response.data?.amount ??
+        0,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error.response?.data?.message ||
+        "Failed to fetch monthly donation total",
+      totalAmount: 0,
     };
   }
 };

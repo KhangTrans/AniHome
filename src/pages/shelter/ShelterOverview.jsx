@@ -4,6 +4,7 @@ import {
   Row,
   Col,
   Statistic,
+  Select,
   Button,
   List,
   Alert,
@@ -15,11 +16,10 @@ import {
 import {
   Package,
   MapPin,
-  Plus,
   Clock,
   TrendingUp,
+  Image as ImageIcon,
   PawPrint,
-  User as UserIcon,
   Settings,
   Upload,
   X,
@@ -28,7 +28,9 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import {
   getShelterDashboard,
+  getShelterDashboardInfo,
   getShelterProfile,
+  getShelterMonthlyDonationTotal,
   updateShelterProfile,
 } from "../../services/shelter/shelterDashboardService";
 import { uploadImage } from "../../services/public/uploadService";
@@ -37,8 +39,22 @@ const ShelterOverview = () => {
   const { user } = useAuth();
   const toast = useToast();
 
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1;
+  const currentYear = currentDate.getFullYear();
+
   const [loading, setLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
+  const [shelterInfo, setShelterInfo] = useState(null);
+  const [monthlyDonationTotal, setMonthlyDonationTotal] = useState(0);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const month = Number(localStorage.getItem("shelterDonationMonth"));
+    return month >= 1 && month <= 12 ? month : currentMonth;
+  });
+  const [selectedYear, setSelectedYear] = useState(() => {
+    const year = Number(localStorage.getItem("shelterDonationYear"));
+    return year > 0 ? year : currentYear;
+  });
 
   // Profile state
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -55,18 +71,42 @@ const ShelterOverview = () => {
   });
 
   const shelterID = user?.shelterID || 1; // fallback for dev
+  const currencyFormatter = new Intl.NumberFormat("vi-VN");
 
   // Fetch dashboard data
   useEffect(() => {
     const fetchDashboard = async () => {
       setLoading(true);
       try {
-        const result = await getShelterDashboard(shelterID);
+        const [dashboardResult, monthlyDonationResult, shelterInfoResult] =
+          await Promise.all([
+          getShelterDashboard(shelterID),
+          getShelterMonthlyDonationTotal(
+            shelterID,
+            selectedMonth,
+            selectedYear,
+          ),
+          getShelterDashboardInfo(shelterID),
+        ]);
 
-        if (result.success) {
-          setDashboardData(result.data);
+        if (dashboardResult.success) {
+          setDashboardData(dashboardResult.data);
         } else {
-          toast.error(result.error || "Không thể tải dữ liệu dashboard");
+          toast.error(
+            dashboardResult.error || "Không thể tải dữ liệu dashboard",
+          );
+        }
+
+        if (monthlyDonationResult.success) {
+          setMonthlyDonationTotal(monthlyDonationResult.totalAmount || 0);
+        } else {
+          setMonthlyDonationTotal(0);
+        }
+
+        if (shelterInfoResult.success) {
+          setShelterInfo(shelterInfoResult.data);
+        } else {
+          setShelterInfo(null);
         }
       } catch (error) {
         toast.error("Đã xảy ra lỗi khi tải dữ liệu");
@@ -76,7 +116,12 @@ const ShelterOverview = () => {
     };
 
     fetchDashboard();
-  }, [shelterID]);
+  }, [shelterID, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    localStorage.setItem("shelterDonationMonth", String(selectedMonth));
+    localStorage.setItem("shelterDonationYear", String(selectedYear));
+  }, [selectedMonth, selectedYear]);
 
   // Handle profile image upload
   const handleProfileImageUpload = async (e) => {
@@ -123,31 +168,35 @@ const ShelterOverview = () => {
     }
   };
 
-  const stats = dashboardData?.stats
+  const dashboardStats = dashboardData?.stats || dashboardData?.Stats || {};
+
+  const stats = dashboardData
     ? [
       {
         label: "Tổng Thú Cưng",
-        value: dashboardData.stats.totalAnimals || 0,
+        value: dashboardStats.totalAnimals ?? dashboardStats.TotalAnimals ?? 0,
         icon: <PawPrint size={32} />,
         color: "#FF6B6B",
       },
       {
         label: "Nhận Nuôi (Tháng)",
-        value: dashboardData.stats.adoptionsMonth || 0,
+        value:
+          dashboardStats.adoptionsMonth ?? dashboardStats.AdoptionsMonth ?? 0,
         icon: <TrendingUp size={32} />,
         color: "#52C41A",
       },
       {
         label: "Đơn Đợi Duyệt",
-        value: dashboardData.stats.pendingApps || 0,
+        value: dashboardStats.pendingApps ?? dashboardStats.PendingApps ?? 0,
         icon: <Clock size={32} />,
         color: "#FAAD14",
       },
       {
-        label: "Hàng Tồn Thấp",
-        value: dashboardData.stats.lowStockItems || 0,
-        icon: <Package size={32} />,
-        color: "#F5222D",
+        label: `Quyên Góp Tháng ${selectedMonth}/${selectedYear}`,
+        value: monthlyDonationTotal || 0,
+        icon: <TrendingUp size={32} />,
+        color: "#13C2C2",
+        isCurrency: true,
       },
     ]
     : [];
@@ -170,7 +219,34 @@ const ShelterOverview = () => {
           }}
         >
           <Row justify="space-between" align="middle">
-            <Col>
+            <Col flex="auto">
+              <Space align="start" size={16}>
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    background: "rgba(255,255,255,0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                    flexShrink: 0,
+                  }}
+                >
+                  {shelterInfo?.imageUrls?.[0] || shelterInfo?.ImageUrls?.[0] ? (
+                    <img
+                      src={shelterInfo?.imageUrls?.[0] || shelterInfo?.ImageUrls?.[0]}
+                      alt="Shelter"
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    <ImageIcon size={28} color="white" />
+                  )}
+                </div>
+
+                <div>
               <h1
                 style={{
                   fontSize: "2rem",
@@ -179,11 +255,20 @@ const ShelterOverview = () => {
                   marginBottom: 8,
                 }}
               >
-                {user?.shelterName || "Happy Paws Rescue"}
+                {shelterInfo?.shelterName ||
+                  shelterInfo?.ShelterName ||
+                  user?.shelterName ||
+                  "Happy Paws Rescue"}
               </h1>
               <Space style={{ color: "white", opacity: 0.95 }}>
                 <MapPin size={18} />
-                <span style={{ fontSize: "1rem" }}>Dashboard Tổng Quan</span>
+                <span style={{ fontSize: "1rem" }}>
+                  {shelterInfo?.location ||
+                    shelterInfo?.Location ||
+                    "Dashboard Tổng Quan"}
+                </span>
+              </Space>
+                </div>
               </Space>
             </Col>
             <Col>
@@ -244,6 +329,57 @@ const ShelterOverview = () => {
           </Row>
         </Card>
 
+        <Card
+          style={{
+            marginBottom: 16,
+            borderRadius: 8,
+            border: "1px solid #e6f4ff",
+            background: "#f7fbff",
+          }}
+        >
+          <Row gutter={[12, 12]} align="middle" justify="space-between">
+            <Col xs={24} md={9}>
+              <div style={{ fontWeight: 600, color: "#1d39c4" }}>
+                Bộ lọc tiền quyên góp
+              </div>
+              <div style={{ color: "#595959", fontSize: "0.9rem" }}>
+                Chọn tháng/năm để xem tổng tiền chính xác.
+              </div>
+            </Col>
+
+            <Col xs={24} md={15}>
+              <Space wrap style={{ width: "100%", justifyContent: "flex-end" }}>
+                <Select
+                  value={selectedMonth}
+                  style={{ width: 130 }}
+                  options={Array.from({ length: 12 }, (_, index) => ({
+                    label: `Tháng ${index + 1}`,
+                    value: index + 1,
+                  }))}
+                  onChange={setSelectedMonth}
+                />
+                <Select
+                  value={selectedYear}
+                  style={{ width: 130 }}
+                  options={Array.from({ length: 6 }, (_, index) => {
+                    const year = currentYear - index;
+                    return { label: `Năm ${year}`, value: year };
+                  })}
+                  onChange={setSelectedYear}
+                />
+                <Button
+                  onClick={() => {
+                    setSelectedMonth(currentMonth);
+                    setSelectedYear(currentYear);
+                  }}
+                >
+                  Tháng hiện tại
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+
         {/* Stats Grid */}
         {stats.length > 0 && (
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -267,9 +403,14 @@ const ShelterOverview = () => {
                       <div style={{ color: stat.color }}>{stat.icon}</div>
                       <Statistic
                         value={stat.value}
+                        formatter={(value) =>
+                          stat.isCurrency
+                            ? `${currencyFormatter.format(Number(value) || 0)} đ`
+                            : value
+                        }
                         styles={{
                           content: {
-                            fontSize: "2rem",
+                            fontSize: stat.isCurrency ? "1.5rem" : "2rem",
                             fontWeight: 600,
                             color: stat.color,
                           },

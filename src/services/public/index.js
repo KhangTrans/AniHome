@@ -26,3 +26,6 @@ export * from './donationService';
 
 // Surrender / Rescue Request API
 export * from './surrenderService';
+
+// Marketplace public APIs
+export * from './marketplaceService';
