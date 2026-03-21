@@ -22,12 +22,12 @@ export const getShelterInventory = async (shelterId, params = {}) => {
     };
 
     const queryString = new URLSearchParams(queryParams).toString();
-    const url = queryString 
+    const url = queryString
       ? `/manage-shelter/${shelterId}/inventory?${queryString}`
       : `/manage-shelter/${shelterId}/inventory`;
-      
+
     const response = await axiosInstance.get(url);
-    
+
     return {
       success: true,
       data: response.data,
@@ -63,7 +63,7 @@ export const addInventoryItem = async (shelterId, inventoryData) => {
       unit: inventoryData.unit,
       minRequired: Number(inventoryData.minRequired),
     });
-    
+
     return {
       success: true,
       data: response.data,
@@ -91,7 +91,7 @@ export const updateInventoryStock = async (shelterId, supplyId, quantity) => {
       `/manage-shelter/${shelterId}/inventory/${supplyId}/stock`,
       { newQuantity: Number(quantity) }
     );
-    
+
     return {
       success: true,
       data: response.data,
@@ -133,30 +133,8 @@ export const getStoreStats = async (shelterId, month, year) => {
 };
 
 /**
- * GET /api/manage-shelter/{shelterId}/store/supplies
- * Lấy danh sách vật phẩm nội bộ
- */
-export const getStoreSupplies = async (shelterId) => {
-  try {
-    const response = await axiosInstance.get(
-      `/manage-shelter/${shelterId}/store/supplies`,
-    );
-
-    return {
-      success: true,
-      data: response.data,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error.response?.data?.message || "Failed to fetch supplies list",
-    };
-  }
-};
-
-/**
  * GET /api/manage-shelter/{shelterId}/store/products
- * Lấy danh sách sản phẩm gây quỹ của shelter
+ * Lấy danh sách tất cả sản phẩm (Unified - Vật Phẩm Nội Bộ + Sản Phẩm Gây Quỹ)
  */
 export const getStoreProducts = async (shelterId) => {
   try {
@@ -172,6 +150,130 @@ export const getStoreProducts = async (shelterId) => {
     return {
       success: false,
       error: error.response?.data?.message || "Failed to fetch products list",
+    };
+  }
+};
+
+/**
+ * POST /api/manage-shelter/{shelterId}/store/products
+ * Tạo mới sản phẩm (Unified - Vật Phẩm hoặc Sản Phẩm Gây Quỹ)
+ */
+export const createProduct = async (shelterId, productData) => {
+  try {
+    // Log payload size for debugging
+    const payload = {
+      productName: productData.productName,
+      price: Number(productData.price || 0),
+      quantity: Number(productData.quantity),
+      unit: productData.unit,
+      categoryID: Number(productData.categoryID),
+      description: productData.description || "",
+      imageUrls: productData.imageUrls || [],
+    };
+
+    const payloadSize = JSON.stringify(payload).length;
+    console.log(`[createProduct] Payload size: ${(payloadSize / 1024).toFixed(2)}KB`);
+    console.log('[createProduct] Sending:', {
+      productName: payload.productName,
+      categoryID: payload.categoryID,
+      imageCount: payload.imageUrls.length,
+    });
+
+    const response = await axiosInstance.post(
+      `/manage-shelter/${shelterId}/store/products`,
+      payload
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message: response.data?.message || "Tạo sản phẩm thành công!",
+    };
+  } catch (error) {
+    const errorMsg = error.response?.data?.message
+      || error.response?.data?.error
+      || error.message || "Không thể tạo sản phẩm";
+
+    console.error('[createProduct] Error:', {
+      status: error.response?.status,
+      message: errorMsg,
+      data: error.response?.data,
+    });
+
+    return {
+      success: false,
+      error: errorMsg,
+    };
+  }
+};
+
+/**
+ * PUT /api/manage-shelter/{shelterId}/store/products/{productId}
+ * Cập nhật sản phẩm
+ */
+export const updateProduct = async (shelterId, productId, productData) => {
+  try {
+    const payload = {
+      productName: productData.productName,
+      price: Number(productData.price || 0),
+      quantity: Number(productData.quantity),
+      unit: productData.unit,
+      categoryID: Number(productData.categoryID),
+      description: productData.description || "",
+      imageUrls: productData.imageUrls || [],
+      isActive: productData.isActive !== undefined ? productData.isActive : true,
+    };
+
+    const payloadSize = JSON.stringify(payload).length;
+    console.log(`[updateProduct] Payload size: ${(payloadSize / 1024).toFixed(2)}KB`);
+
+    const response = await axiosInstance.put(
+      `/manage-shelter/${shelterId}/store/products/${productId}`,
+      payload
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message: response.data?.message || "Cập nhật sản phẩm thành công!",
+    };
+  } catch (error) {
+    const errorMsg = error.response?.data?.message
+      || error.response?.data?.error
+      || error.message || "Không thể cập nhật sản phẩm";
+
+    console.error('[updateProduct] Error:', {
+      status: error.response?.status,
+      message: errorMsg,
+      data: error.response?.data,
+    });
+
+    return {
+      success: false,
+      error: errorMsg,
+    };
+  }
+};
+
+/**
+ * DELETE /api/manage-shelter/{shelterId}/store/products/{productId}
+ * Xóa sản phẩm
+ */
+export const deleteProduct = async (shelterId, productId) => {
+  try {
+    const response = await axiosInstance.delete(
+      `/manage-shelter/${shelterId}/store/products/${productId}`,
+    );
+
+    return {
+      success: true,
+      data: response.data,
+      message: response.data?.message || "Xóa sản phẩm thành công!",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.response?.data?.message || "Không thể xóa sản phẩm",
     };
   }
 };
@@ -305,7 +407,7 @@ export const UNIT_TYPES = [
  */
 export const validateInventoryData = (data) => {
   const errors = {};
-  
+
   if (!data.itemName) errors.itemName = 'Vui lòng nhập tên vật tư';
   if (!data.category) errors.category = 'Vui lòng chọn danh mục';
   if (data.quantity === undefined || data.quantity === null) {
@@ -315,15 +417,15 @@ export const validateInventoryData = (data) => {
   if (data.minStockLevel === undefined || data.minStockLevel === null) {
     errors.minStockLevel = 'Vui lòng nhập mức tồn kho tối thiểu';
   }
-  
+
   if (data.quantity !== undefined && data.quantity < 0) {
     errors.quantity = 'Số lượng không thể âm';
   }
-  
+
   if (data.minStockLevel !== undefined && data.minStockLevel < 0) {
     errors.minStockLevel = 'Mức tồn kho không thể âm';
   }
-  
+
   return {
     isValid: Object.keys(errors).length === 0,
     errors,
@@ -344,11 +446,11 @@ export const getStockStatusBadge = (quantity, minStockLevel) => {
   if (quantity === 0) {
     return { text: 'Hết hàng', color: '#ef4444', bg: '#fee2e2', icon: '❌' };
   }
-  
+
   if (quantity <= minStockLevel) {
     return { text: 'Sắp hết', color: '#f59e0b', bg: '#fef3c7', icon: '⚠️' };
   }
-  
+
   return { text: 'Đầy đủ', color: '#10b981', bg: '#d1fae5', icon: '✅' };
 };
 
@@ -365,10 +467,10 @@ export const isExpired = (expiryDate) => {
  */
 export const isExpiringSoon = (expiryDate) => {
   if (!expiryDate) return false;
-  
+
   const today = new Date();
   const expiry = new Date(expiryDate);
   const daysUntilExpiry = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
-  
+
   return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
 };
