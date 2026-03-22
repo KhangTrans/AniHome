@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { PawPrint, LayoutDashboard, Menu, X, LogOut, User } from "lucide-react";
+import { PawPrint, LayoutDashboard, Menu, X, LogOut, User, ShoppingCart } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
@@ -142,6 +142,20 @@ const Navbar = () => {
             >
               Quy Trình
             </a>
+            <Link
+              to="/cart"
+              className="hover-text-primary transition-colors"
+              style={{
+                textDecoration: "none",
+                color: location.pathname === "/cart" ? "var(--primary)" : "inherit",
+                display: "flex",
+                alignItems: "center",
+                fontSize: "1.2rem",
+              }}
+              title="Giỏ Hàng"
+            >
+              <ShoppingCart size={20} />
+            </Link>
           </div>
 
           <div
@@ -165,9 +179,23 @@ const Navbar = () => {
                     color: "inherit",
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.4rem",
+                    gap: "0.5rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "6px",
+                    transition: "all 0.3s ease",
+                    cursor: "pointer",
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#f3f4f6";
+                    e.currentTarget.style.color = "var(--primary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "inherit";
+                  }}
+                  title="Xem hồ sơ cá nhân"
                 >
+                  <User size={18} />
                   <span style={{ fontSize: "0.9rem", color: "var(--dark)" }}>
                     Xin chào,{" "}
                     <strong>
@@ -182,8 +210,24 @@ const Navbar = () => {
                 {/* Dashboard Link based on Role */}
                 {(user.role === "shelter_admin" ||
                   user.role === "super_admin") && (
+                    <Link
+                      to={user.role === "super_admin" ? "/admin" : "/shelter"}
+                      className="btn btn-primary"
+                      style={{
+                        padding: "0.5rem 1rem",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                      }}
+                      title="Vào Trang Quản Lý"
+                    >
+                      <LayoutDashboard size={18} /> Quản Lý
+                    </Link>
+                  )}
+
+                {user.role === "partner" && (
                   <Link
-                    to={user.role === "super_admin" ? "/admin" : "/shelter"}
+                    to="/seller-orders"
                     className="btn btn-primary"
                     style={{
                       padding: "0.5rem 1rem",
@@ -191,9 +235,9 @@ const Navbar = () => {
                       alignItems: "center",
                       gap: "0.5rem",
                     }}
-                    title="Vào Trang Quản Lý"
+                    title="Quản Lý Đơn Hàng"
                   >
-                    <LayoutDashboard size={18} /> Quản Lý
+                    <LayoutDashboard size={18} /> Đơn Hàng
                   </Link>
                 )}
 
@@ -362,20 +406,20 @@ const Navbar = () => {
 
               {(user.role === "shelter_admin" ||
                 user.role === "super_admin") && (
-                <Link
-                  to={user.role === "super_admin" ? "/admin" : "/shelter"}
-                  onClick={toggleMenu}
-                  className="btn btn-primary"
-                  style={{
-                    textAlign: "center",
-                    justifyContent: "center",
-                    padding: "1rem",
-                  }}
-                >
-                  <LayoutDashboard size={20} className="mr-2" /> Vào Trang Quản
-                  Lý
-                </Link>
-              )}
+                  <Link
+                    to={user.role === "super_admin" ? "/admin" : "/shelter"}
+                    onClick={toggleMenu}
+                    className="btn btn-primary"
+                    style={{
+                      textAlign: "center",
+                      justifyContent: "center",
+                      padding: "1rem",
+                    }}
+                  >
+                    <LayoutDashboard size={20} className="mr-2" /> Vào Trang Quản
+                    Lý
+                  </Link>
+                )}
 
               <button
                 onClick={() => {

@@ -11,6 +11,8 @@ import {
   Avatar,
   Upload,
   Space,
+  Tag,
+  Table,
 } from "antd";
 import {
   UserOutlined,
@@ -20,6 +22,7 @@ import {
   MailOutlined,
   PictureOutlined,
   UploadOutlined,
+  ShoppingOutlined,
 } from "@ant-design/icons";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -29,19 +32,24 @@ import {
   changePassword,
 } from "../../services/user/userService";
 import { uploadImage } from "../../services/public/uploadService";
+import { getOrderHistory, getOrderStatusLabel, getPaymentStatusLabel } from "../../services/public/orderService";
 import Navbar from "../../components/Navbar";
 import { PawPrint } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const { Title, Text } = Typography;
 
 const UserProfilePage = () => {
   const { user } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [loadingAvatar, setLoadingAvatar] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
   const [profileData, setProfileData] = useState(null);
+  const [orders, setOrders] = useState([]);
   const [profileForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
@@ -49,6 +57,7 @@ const UserProfilePage = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetchOrders();
   }, [currentUserId]);
 
   const fetchProfile = async () => {
@@ -70,6 +79,17 @@ const UserProfilePage = () => {
       toast.error("Không thể tải thông tin người dùng: " + result.error);
     }
     setLoading(false);
+  };
+
+  const fetchOrders = async () => {
+    setLoadingOrders(true);
+    const result = await getOrderHistory(1, 100);
+    if (result.success) {
+      setOrders(result.data);
+    } else {
+      toast.error("Không thể tải lịch sử đơn hàng");
+    }
+    setLoadingOrders(false);
   };
 
   const handleUpdateProfile = async (values) => {
@@ -298,6 +318,99 @@ const UserProfilePage = () => {
     </div>
   );
 
+  const OrdersTab = (
+    <div style={{ marginTop: "1rem" }}>
+      {loadingOrders ? (
+        <div style={{ textAlign: "center", padding: "3rem 0" }}>
+          <Spin size="large" />
+        </div>
+      ) : orders.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "2rem", color: "#999" }}>
+          <ShoppingOutlined style={{ fontSize: "2rem", display: "block", marginBottom: "0.5rem" }} />
+          <p>Chưa có đơn hàng nào</p>
+        </div>
+      ) : (
+        <Table
+          columns={[
+            {
+              title: "Mã Đơn",
+              dataIndex: "OrderID",
+              key: "OrderID",
+              render: (text) => <strong>#{text}</strong>,
+            },
+            {
+              title: "Ngày Đặt",
+              dataIndex: "OrderDate",
+              key: "OrderDate",
+              render: (date) => new Date(date).toLocaleDateString("vi-VN"),
+            },
+            {
+              title: "Sản Phẩm",
+              dataIndex: ["OrderItems", "length"],
+              key: "items",
+              render: (count) => `${count || 0} sản phẩm`,
+            },
+            {
+              title: "Tổng Tiền",
+              dataIndex: "TotalAmount",
+              key: "TotalAmount",
+              render: (amount) => (
+                <span style={{ color: "#ef4444", fontWeight: "bold" }}>
+                  {amount?.toLocaleString("vi-VN")}đ
+                </span>
+              ),
+            },
+            {
+              title: "Trạng Thái",
+              dataIndex: "OrderStatus",
+              key: "OrderStatus",
+              render: (status) => {
+                const statusInfo = getOrderStatusLabel(status);
+                return (
+                  <Tag color={statusInfo.color} style={{ cursor: "pointer" }}>
+                    {statusInfo.label}
+                  </Tag>
+                );
+              },
+            },
+            {
+              title: "Thanh Toán",
+              dataIndex: "PaymentStatus",
+              key: "PaymentStatus",
+              render: (status) => {
+                const paymentInfo = getPaymentStatusLabel(status);
+                return (
+                  <Tag color={paymentInfo.color}>
+                    {paymentInfo.label}
+                  </Tag>
+                );
+              },
+            },
+            {
+              title: "Hành Động",
+              key: "action",
+              render: (_, record) => (
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => navigate(`/orders/${record.OrderID}`)}
+                >
+                  Chi Tiết
+                </Button>
+              ),
+            },
+          ]}
+          dataSource={orders.map((order) => ({
+            ...order,
+            key: order.OrderID,
+          }))}
+          pagination={{ pageSize: 10 }}
+          scroll={{ x: 1000 }}
+        />
+      )}
+    </div>
+  );
+
   return (
     <div
       style={{
@@ -356,6 +469,12 @@ const UserProfilePage = () => {
                   key: "2",
                   label: "Bảo Mật",
                   children: PasswordTab,
+                },
+                {
+                  key: "3",
+                  label: "Lịch Sử Mua Hàng",
+                  icon: <ShoppingOutlined />,
+                  children: OrdersTab,
                 },
               ]}
             />

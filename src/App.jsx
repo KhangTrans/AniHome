@@ -40,6 +40,16 @@ import UserProfilePage from "./pages/user/UserProfilePage";
 // Rescue Request
 import RescueRequestPage from "./pages/public/RescueRequestPage";
 
+// Shopping & Orders
+import CartPage from "./pages/public/CartPage";
+import PaymentPage from "./pages/public/PaymentPage";
+import OrderConfirmationPage from "./pages/public/OrderConfirmationPage";
+import OrderHistoryPage from "./pages/public/OrderHistoryPage";
+import OrderDetailPage from "./pages/public/OrderDetailPage";
+
+// Partner/Seller Pages
+import SellerOrders from "./pages/partner/SellerOrders";
+
 // Floating Rescue Button
 import RescueFloatingButton from "./components/RescueFloatingButton";
 
@@ -121,6 +131,37 @@ function App() {
               element={
                 <ProtectedRoute>
                   <RescueRequestPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Shopping Routes */}
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/payment" element={<PaymentPage />} />
+            <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <OrderHistoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:orderId"
+              element={
+                <ProtectedRoute>
+                  <OrderDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Seller/Partner Routes */}
+            <Route
+              path="/seller-orders"
+              element={
+                <ProtectedRoute allowedRoles={["partner"]}>
+                  <SellerOrders />
                 </ProtectedRoute>
               }
             />
