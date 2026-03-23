@@ -1,5 +1,4 @@
 import React from "react";
-import { PawPrint } from "lucide-react";
 
 const Footer = () => {
   return (
@@ -35,7 +34,11 @@ const Footer = () => {
               gap: "0.5rem",
             }}
           >
-            <PawPrint size={20} /> HomePaws
+            <img
+              src="/logo_wed.png"
+              alt="HomePaws Logo"
+              style={{ height: "60px", width: "auto", objectFit: "contain" }}
+            />
           </h4>
           <p style={{ color: "var(--gray)", fontSize: "0.9rem" }}>
             Làm cho thế giới tốt đẹp hơn, từng bé một.

@@ -39,25 +39,15 @@ const Navbar = () => {
           style={{ textDecoration: "none" }}
           onClick={() => setIsMenuOpen(false)}
         >
-          <h1
-            className="logo-container"
+          <img
+            src="/logo_wed.png"
+            alt="HomePaws Logo"
             style={{
-              fontSize: "1.6rem",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.6rem",
-              margin: 0,
-              fontWeight: "900",
-              letterSpacing: "-0.5px",
+              height: "70px",
+              width: "auto",
+              objectFit: "contain",
             }}
-          >
-            <div className="logo-icon-wrapper">
-              <PawPrint className="logo-icon" size={28} />
-            </div>
-            <span className="logo-text">
-              Home<span className="logo-text-accent">Paws</span>
-            </span>
-          </h1>
+          />
         </Link>
 
         {/* Toggle Button for Mobile */}
