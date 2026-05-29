@@ -220,22 +220,37 @@ const RegionalRescueManager = () => {
     {
       title: "Vị trí & Địa chỉ",
       key: "location",
-      render: (_, record) => (
-        <div>
-          <div className="flex items-start gap-1 text-xs">
-            <MapPin size={14} className="text-red-500 mt-0.5 shrink-0" />
-            <span>{record.userAddress}</span>
+      render: (_, record) => {
+        // Bắt tọa độ từ backend (thử cả 2 trường hợp viết hoa và viết thường)
+        const lat = record.latitude ?? record.Latitude;
+        const lng = record.longitude ?? record.Longitude;
+        const address = record.userAddress ?? record.UserAddress;
+
+        return (
+          <div>
+            <div className="flex items-start gap-1 text-xs">
+              <MapPin size={14} className="text-red-500 mt-0.5 shrink-0" />
+              <span>{address || "Chưa có địa chỉ"}</span>
+            </div>
+
+            {/* Kiểm tra nếu có đủ cả lat và lng thì mới hiện link Google Maps */}
+            {lat && lng ? (
+              <a
+                href={`https://www.google.com/maps?q=${lat},${lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-500 flex items-center gap-1 mt-1 hover:underline"
+              >
+                Xem trên bản đồ <ExternalLink size={12} />
+              </a>
+            ) : (
+              <span className="text-xs text-gray-400 italic block mt-1">
+                Chưa có tọa độ GPS
+              </span>
+            )}
           </div>
-          <a
-            href={`https://www.google.com/maps?q=${record.latitude},${record.longitude}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-500 flex items-center gap-1 mt-1 hover:underline"
-          >
-            Xem trên bản đồ <ExternalLink size={12} />
-          </a>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: "Người báo cáo",

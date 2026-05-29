@@ -125,13 +125,18 @@ const Navbar = () => {
                 Cứu Hộ
               </Link>
             )}
-            <a
-              href="#how-it-works"
+            <Link
+              to="/services"
               className="hover-text-primary transition-colors"
-              style={{ textDecoration: "none", color: "inherit" }}
+              style={{
+                textDecoration: "none",
+                color: location.pathname.includes("/services")
+                  ? "var(--primary)"
+                  : "inherit",
+              }}
             >
-              Quy Trình
-            </a>
+              Dịch Vụ
+            </Link>
             <Link
               to="/cart"
               className="hover-text-primary transition-colors"
@@ -350,19 +355,21 @@ const Navbar = () => {
               Cứu Hộ
             </Link>
           )}
-          <a
-            href="#how-it-works"
+          <Link
+            to="/services"
             onClick={toggleMenu}
             style={{
               textDecoration: "none",
-              color: "#1f2937",
+              color: location.pathname.includes("/services")
+                ? "var(--primary)"
+                : "#1f2937",
               padding: "0.75rem",
               fontWeight: 600,
               fontSize: "1.1rem",
             }}
           >
-            Quy Trình
-          </a>
+            Dịch Vụ
+          </Link>
 
           <hr
             style={{

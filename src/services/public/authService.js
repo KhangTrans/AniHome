@@ -17,6 +17,7 @@ export const register = async (userData) => {
       password: userData.password,
       confirmNewPassword: userData.confirmNewPassword,
       fullName: userData.fullName,
+      roleID: userData.roleID,
     };
 
     const response = await axiosInstance.post("/Auth/register", payload);
@@ -59,7 +60,7 @@ export const login = async (usernameOrEmail, password) => {
     // Backend trả về format mới: { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID }
     const data = response.data;
     console.log("Login response data:", data); // Debug: log actual response
-    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID } =
+    const { userID, roleID, accessToken, refreshToken, fullName, avatarURL, shelterID, email, phone, username } =
       data;
 
     // Tạo user object đầy đủ để lưu trữ và phân quyền
@@ -69,6 +70,9 @@ export const login = async (usernameOrEmail, password) => {
       fullName: fullName || data.fullName || data.FullName,
       avatarURL: avatarURL || data.avatarURL || data.AvatarURL,
       shelterID: shelterID || data.shelterID || data.ShelterID,
+      email: email || data.email || data.Email,
+      phone: phone || data.phone || data.Phone,
+      username: username || data.username || data.Username,
       usernameOrEmail,
     };
 

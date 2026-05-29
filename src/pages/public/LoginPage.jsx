@@ -12,7 +12,7 @@ const LoginPage = () => {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
@@ -38,6 +38,12 @@ const LoginPage = () => {
       const result = await login(usernameOrEmail, password);
 
       if (result.success) {
+        if (result.role === 3) {
+          await logout();
+          setError("Tài khoản đối tác không thể đăng nhập tại đây. Vui lòng sử dụng trang đăng nhập đối tác.");
+          return;
+        }
+
         if (from) {
           navigate(from, { replace: true });
         } else {
@@ -50,9 +56,6 @@ const LoginPage = () => {
             case 2:
               navigate("/shelter");
               break; // Shelter Admin
-            case 3:
-              navigate("/volunteer");
-              break; // Volunteer
             default:
               navigate("/"); // User (roleID = 4)
           }
@@ -73,6 +76,13 @@ const LoginPage = () => {
       const result = await loginWithGoogle(credentialResponse.credential);
 
       if (result.success) {
+        if (result.role === 3) {
+          await logout();
+          setError("Tài khoản đối tác không thể đăng nhập tại đây. Vui lòng sử dụng trang đăng nhập đối tác.");
+          toast.error("Tài khoản đối tác phải đăng nhập tại trang dành riêng cho Đối tác.");
+          return;
+        }
+
         toast.success("Google login successful!");
 
         if (from) {
@@ -87,9 +97,6 @@ const LoginPage = () => {
             case 2:
               navigate("/shelter");
               break; // Shelter Admin
-            case 3:
-              navigate("/volunteer");
-              break; // Volunteer
             default:
               navigate("/"); // User (roleID = 4)
           }
@@ -300,6 +307,28 @@ const LoginPage = () => {
             }}
           >
             Sign up
+          </Link>
+        </div>
+
+        <div
+          style={{
+            marginTop: "1.5rem",
+            paddingTop: "1rem",
+            borderTop: "1px solid #eee",
+            textAlign: "center",
+            fontSize: "0.9rem",
+          }}
+        >
+          <span style={{ color: "var(--gray)" }}>Are you a business partner? </span>
+          <Link
+            to="/partner/login"
+            style={{
+              color: "var(--secondary)",
+              fontWeight: "600",
+              textDecoration: "none",
+            }}
+          >
+            Partner Portal
           </Link>
         </div>
       </div>

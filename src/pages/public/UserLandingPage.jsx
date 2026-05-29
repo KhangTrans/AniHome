@@ -77,73 +77,80 @@ const UserLandingPage = () => {
       setLoading(true);
       setError(null);
 
-      // Fetch home stats
-      const statsResult = await getHomeStats();
-      if (statsResult.success) {
-        setHomeStats(statsResult.data);
+      try {
+        // Fetch home stats
+        const statsResult = await getHomeStats();
+        if (statsResult && statsResult.success) {
+          setHomeStats(statsResult.data);
+        }
+
+        // Fetch available pets with Pagination
+        const result = await getAvailablePets({
+          page: currentPage,
+          pageSize: pageSize
+        });
+
+        if (result && result.success && result.data && Array.isArray(result.data.items)) {
+          const mappedAnimals = result.data.items.map((pet) => ({
+            id: pet.petID,
+            name: pet.petName,
+            breed: pet.breed,
+            status: pet.status,
+            image: pet.imageURL,
+            type: pet.categoryName,
+            description:
+              pet.description ||
+              `${pet.petName} là một ${pet.breed} đang tìm mái ấm mới.`,
+            petID: pet.petID,
+            petName: pet.petName,
+          }));
+          setAnimals(mappedAnimals);
+
+          setTotalPages(result.data.totalPages || 1);
+        } else if (result && !result.success) {
+          setError(result.error);
+          toast.error("Failed to load pets: " + (result.error || "Unknown error"));
+        }
+
+        // Fetch partner shelters
+        const sheltersResult = await getShelters({ page: 1, pageSize: 5 });
+        if (sheltersResult && sheltersResult.success && sheltersResult.data && Array.isArray(sheltersResult.data.items)) {
+          const mappedShelters = sheltersResult.data.items.map(
+            (shelter) => {
+              let shelterImg =
+                "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80"; // Default image
+              if (shelter.imageURL) {
+                shelterImg = shelter.imageURL;
+              } else if (shelter.imageUrls && shelter.imageUrls.length > 0) {
+                shelterImg = shelter.imageUrls[0];
+              }
+
+              return {
+                id: shelter.shelterID,
+                name: shelter.shelterName,
+                location: shelter.location,
+                region: shelter.regionName,
+                animalCount: shelter.totalPets || 0,
+                img: shelterImg,
+              };
+            },
+          );
+          setPartners(mappedShelters);
+        }
+
+        // Fetch happy stories
+        const storiesResult = await getHappyStories();
+        if (storiesResult && storiesResult.success && Array.isArray(storiesResult.data)) {
+          setHappyStories(storiesResult.data);
+        } else {
+          setHappyStories([]);
+        }
+      } catch (err) {
+        console.error("Error in homepage fetchData:", err);
+        setError(err.message || "Failed to load homepage data");
+      } finally {
+        setLoading(false);
       }
-
-      // Fetch available pets with Pagination
-      const result = await getAvailablePets({
-        page: currentPage,
-        pageSize: pageSize
-      });
-
-      if (result.success) {
-        const mappedAnimals = (result.data.items || []).map((pet) => ({
-          id: pet.petID,
-          name: pet.petName,
-          breed: pet.breed,
-          status: pet.status,
-          image: pet.imageURL,
-          type: pet.categoryName,
-          description:
-            pet.description ||
-            `${pet.petName} là một ${pet.breed} đang tìm mái ấm mới.`,
-          petID: pet.petID,
-          petName: pet.petName,
-        }));
-        setAnimals(mappedAnimals);
-
-        setTotalPages(result.data.totalPages || 1);
-      } else {
-        setError(result.error);
-        toast.error("Failed to load pets: " + result.error);
-      }
-
-      // Fetch partner shelters
-      const sheltersResult = await getShelters({ page: 1, pageSize: 5 });
-      if (sheltersResult.success) {
-        const mappedShelters = (sheltersResult.data.items || []).map(
-          (shelter) => {
-            let shelterImg =
-              "https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=600&q=80"; // Default image
-            if (shelter.imageURL) {
-              shelterImg = shelter.imageURL;
-            } else if (shelter.imageUrls && shelter.imageUrls.length > 0) {
-              shelterImg = shelter.imageUrls[0];
-            }
-
-            return {
-              id: shelter.shelterID,
-              name: shelter.shelterName,
-              location: shelter.location,
-              region: shelter.regionName,
-              animalCount: shelter.totalPets || 0,
-              img: shelterImg,
-            };
-          },
-        );
-        setPartners(mappedShelters);
-      }
-
-      // Fetch happy stories
-      const storiesResult = await getHappyStories();
-      if (storiesResult.success) {
-        setHappyStories(storiesResult.data || []);
-      }
-
-      setLoading(false);
     };
 
     fetchData();
@@ -727,7 +734,7 @@ const UserLandingPage = () => {
         </section>
 
         {/* Happy Stories Section */}
-        {happyStories && happyStories.length > 0 && (
+        {Array.isArray(happyStories) && happyStories.length > 0 && (
           <section className="happy-stories-section">
             <div style={{ textAlign: "center", marginBottom: "3rem" }}>
               <div
@@ -891,7 +898,7 @@ const UserLandingPage = () => {
                 );
               })}
             </div>
-            {happyStories.length > 3 && (
+            {Array.isArray(happyStories) && happyStories.length > 3 && (
               <div style={{ textAlign: "center", marginTop: "3rem" }}>
                 <Link to="/blog?type=HappyStory" className="btn btn-outline">
                   Xem tất cả câu chuyện

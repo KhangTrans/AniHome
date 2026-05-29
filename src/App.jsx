@@ -39,6 +39,7 @@ import UserProfilePage from "./pages/user/UserProfilePage";
 
 // Rescue Request
 import RescueRequestPage from "./pages/public/RescueRequestPage";
+import ServicesPage from "./pages/public/ServicesPage";
 
 // Shopping & Orders
 import CartPage from "./pages/public/CartPage";
@@ -49,6 +50,9 @@ import OrderDetailPage from "./pages/public/OrderDetailPage";
 
 // Partner/Seller Pages
 import SellerOrders from "./pages/partner/SellerOrders";
+import PartnerLoginPage from "./pages/partner/PartnerLoginPage";
+import PartnerRegisterPage from "./pages/partner/PartnerRegisterPage";
+import PartnerDashboard from "./pages/partner/PartnerDashboard";
 
 // Floating Rescue Button
 import RescueFloatingButton from "./components/RescueFloatingButton";
@@ -59,6 +63,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const location = useLocation();
 
   if (!user) {
+    if (location.pathname.startsWith("/partner")) {
+      return <Navigate to="/partner/login" state={{ from: location }} replace />;
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
@@ -97,6 +104,8 @@ function App() {
             {/* Public Routes - Authentication */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/partner/login" element={<PartnerLoginPage />} />
+            <Route path="/partner/register" element={<PartnerRegisterPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* Public Routes - Main Pages */}
@@ -105,6 +114,7 @@ function App() {
             <Route path="/shelters/:id" element={<ShelterDetailPage />} />
             <Route path="/blog" element={<BlogListPage />} />
             <Route path="/blog/:id" element={<BlogDetailPage />} />
+            <Route path="/services" element={<ServicesPage />} />
 
             {/* Public Routes - Pets */}
             <Route path="/pets" element={<PetsListPage />} />
@@ -188,8 +198,7 @@ function App() {
               path="/partner/*"
               element={
                 <ProtectedRoute allowedRoles={["partner"]}>
-                  <VolunteerDashboard />{" "}
-                  {/* Using existing dashboard for now or until renamed */}
+                  <PartnerDashboard />
                 </ProtectedRoute>
               }
             />

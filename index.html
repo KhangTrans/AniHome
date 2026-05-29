@@ -35,6 +35,28 @@
 </head>
 
 <body>
+  <div id="error-boundary-overlay" style="display:none; padding: 20px; background: #fee2e2; color: #b91c1c; font-family: monospace; border: 2px solid #ef4444; margin: 20px; border-radius: 8px; z-index: 100000; position: relative;">
+    <h3 style="margin: 0 0 10px 0;">Runtime Error Caught:</h3>
+    <pre id="error-boundary-message" style="margin: 0; white-space: pre-wrap;"></pre>
+  </div>
+  <script>
+    window.addEventListener('error', function(event) {
+      const overlay = document.getElementById('error-boundary-overlay');
+      const message = document.getElementById('error-boundary-message');
+      if (overlay && message) {
+        overlay.style.display = 'block';
+        message.textContent = event.error ? (event.error.stack || event.error.message || event.error) : event.message;
+      }
+    });
+    window.addEventListener('unhandledrejection', function(event) {
+      const overlay = document.getElementById('error-boundary-overlay');
+      const message = document.getElementById('error-boundary-message');
+      if (overlay && message) {
+        overlay.style.display = 'block';
+        message.textContent = 'Unhandled Rejection: ' + (event.reason ? (event.reason.stack || event.reason.message || event.reason) : event);
+      }
+    });
+  </script>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
