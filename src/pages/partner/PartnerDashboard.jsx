@@ -16,7 +16,9 @@ import {
   getPartnerPatients,
   createPartnerHealthRecord,
   updatePartnerHealthRecord,
-  deletePartnerHealthRecord
+  deletePartnerHealthRecord,
+  updateOrderStatus,
+  getOrderDetail
 } from "../../services/public/marketplaceService";
 import { changePassword } from "../../services/user/userService";
 import { uploadImage } from "../../services/public/uploadService";
@@ -77,7 +79,12 @@ import {
   Star,
   Briefcase,
   Eye,
-  EyeOff
+  EyeOff,
+  Phone,
+  MapPin,
+  Truck,
+  Clock,
+  AlertCircle
 } from "lucide-react";
 
 // Utility: Compress image to reduce base64 size
@@ -109,6 +116,77 @@ const compressImage = (base64String) => {
   });
 };
 
+// Utility: parse spa details from health record conditionDetails field
+const parseSpaDetails = (conditionDetails) => {
+  if (!conditionDetails) {
+    return {
+      style: "Tỉa gọn gàng tự nhiên",
+      specialRequests: "Không có",
+      evaluation: "Bình thường"
+    };
+  }
+  
+  // Try to parse as JSON
+  try {
+    const trimmed = conditionDetails.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      const parsed = JSON.parse(trimmed);
+      return {
+        style: parsed.style || "Tỉa gọn gàng tự nhiên",
+        specialRequests: parsed.specialRequests || "Không có",
+        evaluation: parsed.evaluation || "Bình thường"
+      };
+    }
+  } catch (e) {
+    console.error("Error parsing spa details JSON, fallback to text parsing:", e);
+  }
+
+  // Fallback if not JSON: parse from plain text or return default
+  const lines = conditionDetails.split("\n");
+  let style = "Tỉa gọn gàng tự nhiên";
+  let specialRequests = "";
+  let evaluation = "Bình thường";
+
+  let foundRequests = false;
+  let requestLines = [];
+
+  for (let line of lines) {
+    if (line.includes("Đã hoàn thành dịch vụ:")) {
+      style = line.replace("Đã hoàn thành dịch vụ:", "").trim();
+    } else if (line.includes("Yêu cầu đặc biệt:")) {
+      foundRequests = true;
+      requestLines.push(line.replace("Yêu cầu đặc biệt:", "").trim());
+    } else if (foundRequests) {
+      requestLines.push(line.trim());
+    } else {
+      if (!specialRequests) {
+        specialRequests = line.trim();
+      } else {
+        specialRequests += "\n" + line.trim();
+      }
+    }
+  }
+
+  if (requestLines.length > 0) {
+    specialRequests = requestLines.join("\n");
+  }
+
+  return {
+    style: style || "Tỉa gọn gàng tự nhiên",
+    specialRequests: specialRequests || "Không có",
+    evaluation: evaluation || "Bình thường"
+  };
+};
+
+// Utility: serialize spa details to JSON
+const serializeSpaDetails = (style, specialRequests, evaluation) => {
+  return JSON.stringify({
+    style: style || "Tỉa gọn gàng tự nhiên",
+    specialRequests: specialRequests || "Không có",
+    evaluation: evaluation || "Bình thường"
+  });
+};
+
 const PartnerDashboard = () => {
   const { user, logout } = useAuth();
   const [activeCategory, setActiveCategory] = useState(null);
@@ -117,6 +195,16 @@ const PartnerDashboard = () => {
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [categoriesList, setCategoriesList] = useState([]);
+
+  // Order management states
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState("");
+  const [isUpdatingOrderStatus, setIsUpdatingOrderStatus] = useState(false);
+  const [activeOrderModal, setActiveOrderModal] = useState(null); // "details" | "updateStatus"
+  const [orderFilterStatus, setOrderFilterStatus] = useState("all");
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
+  const [orderDetailData, setOrderDetailData] = useState(null);
+  const [isLoadingOrderDetail, setIsLoadingOrderDetail] = useState(false);
 
   const [appointments, setAppointments] = useState([]);
 
@@ -150,6 +238,7 @@ const PartnerDashboard = () => {
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("");
+  const [productStockFilter, setProductStockFilter] = useState("all"); // "all", "in_stock", "low_stock", "out_of_stock"
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [hasDbProfile, setHasDbProfile] = useState(false);
@@ -161,11 +250,38 @@ const PartnerDashboard = () => {
   // Health record creation form
   const [showAddHRModal, setShowAddHRModal] = useState(false);
   const [editingHealthRecord, setEditingHealthRecord] = useState(null);
-  const [hrForm, setHrForm] = useState({ petID: "", weight: "", conditionDetails: "", vaccinationStatus: "N/A", petName: "", breed: "", ownerName: "" });
+  const [hrForm, setHrForm] = useState({
+    petID: "",
+    weight: "",
+    conditionDetails: "",
+    vaccinationStatus: "N/A",
+    petName: "",
+    breed: "",
+    ownerName: "",
+    spaStyle: "",
+    spaSpecialRequests: "",
+    spaEvaluation: ""
+  });
   const [isSavingHR, setIsSavingHR] = useState(false);
   const [completingAppointmentId, setCompletingAppointmentId] = useState(null);
   const [ehrSearch, setEhrSearch] = useState("");
+  const [spaSearch, setSpaSearch] = useState("");
   const [allPets, setAllPets] = useState([]);
+
+  // States for Revenue & Tax Management
+  const [taxPaidStatus, setTaxPaidStatus] = useState("Unpaid"); // "Unpaid", "Processing", "Paid"
+  const [selectedTaxRateType, setSelectedTaxRateType] = useState("household_service"); 
+  const [showTaxPaymentModal, setShowTaxPaymentModal] = useState(false);
+  const [selectedTaxPeriod, setSelectedTaxPeriod] = useState("6_months");
+  const [isPayingTax, setIsPayingTax] = useState(false);
+
+  useEffect(() => {
+    if (activeCategory === "shop") {
+      setSelectedTaxRateType("household_shop");
+    } else {
+      setSelectedTaxRateType("household_service");
+    }
+  }, [activeCategory]);
 
   // Cascading shelter pet selection states
   const [shelterRegions, setShelterRegions] = useState([]);
@@ -407,6 +523,54 @@ const PartnerDashboard = () => {
       }
     } catch (err) {
       console.error("Error fetching products:", err);
+    }
+  };
+
+  const fetchOrderDetailData = async (orderId) => {
+    setIsLoadingOrderDetail(true);
+    try {
+      const result = await getOrderDetail(orderId);
+      if (result.success) {
+        setOrderDetailData(result.data);
+      } else {
+        toast.error("Không thể tải chi tiết sản phẩm của đơn hàng: " + result.error);
+      }
+    } catch (err) {
+      console.error("Error fetching order detail:", err);
+      toast.error("Đã xảy ra lỗi khi tải chi tiết đơn hàng");
+    } finally {
+      setIsLoadingOrderDetail(false);
+    }
+  };
+
+  const handleUpdateOrderStatus = async () => {
+    if (!selectedOrder || !selectedOrderStatus) {
+      toast.error("Vui lòng chọn trạng thái mới");
+      return;
+    }
+
+    setIsUpdatingOrderStatus(true);
+    try {
+      const result = await updateOrderStatus(selectedOrder.orderID, selectedOrderStatus);
+      if (result.success) {
+        toast.success("Cập nhật trạng thái đơn hàng thành công!");
+        setOrders(prevOrders => 
+          prevOrders.map(o => 
+            o.orderID === selectedOrder.orderID 
+              ? { ...o, status: selectedOrderStatus } 
+              : o
+          )
+        );
+        setActiveOrderModal(null);
+        setSelectedOrder(null);
+      } else {
+        toast.error(result.message || "Cập nhật trạng thái thất bại");
+      }
+    } catch (err) {
+      console.error("Error updating order status:", err);
+      toast.error("Đã xảy ra lỗi khi cập nhật trạng thái");
+    } finally {
+      setIsUpdatingOrderStatus(false);
     }
   };
 
@@ -759,6 +923,58 @@ const PartnerDashboard = () => {
     }
   };
 
+  const handleQuickStockUpdate = async (prod, newStock) => {
+    if (newStock < 0) return;
+    const loadingToast = toast.loading("Đang cập nhật số lượng tồn kho...");
+    const payload = {
+      productName: prod.name,
+      price: prod.price,
+      quantity: newStock,
+      unit: prod.unit || "cái",
+      categoryID: prod.categoryID || null,
+      imageUrls: [prod.image].filter(Boolean),
+      description: prod.desc || "",
+      isActive: prod.isActive !== undefined ? prod.isActive : true
+    };
+    try {
+      const result = await updatePartnerProduct(prod.id, payload);
+      if (result.success) {
+        toast.success(`Cập nhật tồn kho thành công!`, { id: loadingToast });
+        fetchProducts();
+      } else {
+        toast.error(result.message || "Không thể cập nhật tồn kho.", { id: loadingToast });
+      }
+    } catch (err) {
+      toast.error("Đã xảy ra lỗi khi cập nhật tồn kho.", { id: loadingToast });
+    }
+  };
+
+  const handleQuickStatusToggle = async (prod) => {
+    const nextActive = !prod.isActive;
+    const loadingToast = toast.loading(`Đang ${nextActive ? "kích hoạt" : "tạm ngưng"} sản phẩm...`);
+    const payload = {
+      productName: prod.name,
+      price: prod.price,
+      quantity: prod.stock,
+      unit: prod.unit || "cái",
+      categoryID: prod.categoryID || null,
+      imageUrls: [prod.image].filter(Boolean),
+      description: prod.desc || "",
+      isActive: nextActive
+    };
+    try {
+      const result = await updatePartnerProduct(prod.id, payload);
+      if (result.success) {
+        toast.success(`Sản phẩm đã được ${nextActive ? "kích hoạt" : "tạm ngưng"} thành công!`, { id: loadingToast });
+        fetchProducts();
+      } else {
+        toast.error(result.message || "Không thể thay đổi trạng thái sản phẩm.", { id: loadingToast });
+      }
+    } catch (err) {
+      toast.error("Đã xảy ra lỗi khi cập nhật trạng thái.", { id: loadingToast });
+    }
+  };
+
   // Appointment Actions
   const handleUpdateAppointmentStatus = async (id, newStatus) => {
     const app = appointments.find(a => a.id === id);
@@ -774,10 +990,13 @@ const PartnerDashboard = () => {
         conditionDetails: isSpa
           ? `Đã hoàn thành dịch vụ: ${app.type || "Spa & Grooming"}${app.notes ? `\nYêu cầu đặc biệt: ${app.notes}` : ""}`
           : `Khám & điều trị theo lịch hẹn: ${app.type || "Chưa rõ"}${app.notes ? `\nGhi chú đặt lịch: ${app.notes}` : ""}`,
-        vaccinationStatus: "N/A",
+        vaccinationStatus: isSpa ? "Bình thường" : "N/A",
         petName: matchedPet ? "" : (app.petName || ""),
         breed: "",
-        ownerName: matchedPet ? "" : (app.ownerName || "")
+        ownerName: matchedPet ? "" : (app.ownerName || ""),
+        spaStyle: isSpa ? (app.type || "Tỉa gọn gàng tự nhiên") : "",
+        spaSpecialRequests: isSpa ? (app.notes || "") : "",
+        spaEvaluation: isSpa ? "Khỏe mạnh, lông sạch mượt" : ""
       });
       setEditingHealthRecord(null);
       setShowAddHRModal(true);
@@ -942,29 +1161,53 @@ const PartnerDashboard = () => {
 
   const handleEditHealthRecord = (hr) => {
     setEditingHealthRecord(hr);
-    setHrForm({
-      petID: selectedPatient.id.toString(),
-      weight: hr.weight ? hr.weight.toString() : "",
-      conditionDetails: hr.conditionDetails || "",
-      vaccinationStatus: hr.vaccinationStatus || "N/A"
-    });
+    if (activeCategory === "spa") {
+      const spaData = parseSpaDetails(hr.conditionDetails || "");
+      setHrForm({
+        petID: (hr.petID || selectedPatient?.id || "").toString(),
+        weight: hr.weight ? hr.weight.toString() : "",
+        vaccinationStatus: hr.vaccinationStatus || "", // loại da & lông
+        petName: "",
+        breed: "",
+        ownerName: "",
+        spaStyle: spaData.style || "",
+        spaSpecialRequests: spaData.specialRequests || "",
+        spaEvaluation: spaData.evaluation || "",
+        conditionDetails: hr.conditionDetails || ""
+      });
+    } else {
+      setHrForm({
+        petID: (hr.petID || selectedPatient?.id || "").toString(),
+        weight: hr.weight ? hr.weight.toString() : "",
+        conditionDetails: hr.conditionDetails || "",
+        vaccinationStatus: hr.vaccinationStatus || "N/A",
+        petName: "",
+        breed: "",
+        ownerName: "",
+        spaStyle: "",
+        spaSpecialRequests: "",
+        spaEvaluation: ""
+      });
+    }
     setShowAddHRModal(true);
   };
 
   const handleDeleteHealthRecord = async (recordId) => {
-    if (window.confirm("Bạn có chắc chắn muốn xóa hồ sơ bệnh án này không?")) {
-      const loadingToast = toast.loading("Đang xóa bệnh án...");
+    const isSpa = activeCategory === "spa";
+    const recordTypeName = isSpa ? "hồ sơ chăm sóc" : "bệnh án";
+    if (window.confirm(`Bạn có chắc chắn muốn xóa ${recordTypeName} này không?`)) {
+      const loadingToast = toast.loading(`Đang xóa ${recordTypeName}...`);
       try {
         const result = await deletePartnerHealthRecord(recordId);
         if (result.success) {
-          toast.success("Xóa bệnh án thành công!", { id: loadingToast });
+          toast.success(`Xóa ${recordTypeName} thành công!`, { id: loadingToast });
           setDbPatientsLoaded(false);
         } else {
-          toast.error(result.error || "Không thể xóa bệnh án", { id: loadingToast });
+          toast.error(result.error || `Không thể xóa ${recordTypeName}`, { id: loadingToast });
         }
       } catch (err) {
         console.error(err);
-        toast.error("Có lỗi xảy ra khi xóa bệnh án.", { id: loadingToast });
+        toast.error(`Có lỗi xảy ra khi xóa ${recordTypeName}.`, { id: loadingToast });
       }
     }
   };
@@ -1057,28 +1300,118 @@ const PartnerDashboard = () => {
     }
   };
 
+  const getServicePrice = (serviceType) => {
+    if (!serviceType) return 350000;
+    const pkg = packages.find(p => 
+      p.name.toLowerCase().includes(serviceType.toLowerCase()) || 
+      serviceType.toLowerCase().includes(p.name.toLowerCase())
+    );
+    return pkg ? pkg.price : 350000;
+  };
+
+  const getTaxRate = () => {
+    if (selectedTaxRateType === "household_shop") return 1.5;
+    if (selectedTaxRateType === "household_service") return 4.5;
+    if (selectedTaxRateType === "corporate") return 10.0;
+    return 4.5;
+  };
+
+  const getTaxDetails = (revenue, rateType) => {
+    let rate = 4.5;
+    let threshold = 1000000000; // 1,000,000,000 VND
+    let isExempt = false;
+
+    if (rateType === "household_shop") {
+      rate = 1.5;
+    } else if (rateType === "household_service") {
+      rate = 4.5;
+    } else if (rateType === "corporate") {
+      rate = 10.0;
+      threshold = 0; // Corporate applies immediately from 0đ
+    }
+
+    if (revenue <= threshold) {
+      isExempt = true;
+    }
+
+    const taxDue = isExempt ? 0 : Math.round(revenue * (rate / 100));
+    const estimatedTax = Math.round(revenue * (rate / 100));
+
+    return {
+      rate,
+      threshold,
+      isExempt,
+      taxDue,
+      estimatedTax
+    };
+  };
+
+  const getTransactions = () => {
+    if (activeCategory === "shop") {
+      if (orders && orders.length > 0) {
+        return orders.map(o => ({
+          id: o.orderID || o.id,
+          date: o.orderDate || new Date(o.createdAt).toLocaleDateString("vi-VN"),
+          customer: o.customerName || o.fullName || "Khách mua hàng",
+          amount: o.totalAmount || o.totalPrice || 0,
+          description: "Mua sản phẩm cửa hàng",
+          status: "completed"
+        }));
+      }
+      return [
+        { id: "ORD-1001", date: "2026-05-25", customer: "Nguyễn Văn Hùng", amount: 450000, description: "Mua sản phẩm cửa hàng", status: "completed" },
+        { id: "ORD-1002", date: "2026-05-26", customer: "Trần Thị Lan", amount: 850000, description: "Mua sản phẩm cửa hàng", status: "completed" },
+        { id: "ORD-1003", date: "2026-05-27", customer: "Lê Minh Tuấn", amount: 350000, description: "Mua sản phẩm cửa hàng", status: "completed" }
+      ];
+    } else {
+      // Vet / Spa completed or approved appointments as transactions
+      const completedApts = appointments.filter(a => a.status === "completed" || a.status === "approved");
+      if (completedApts.length > 0) {
+        return completedApts.map(a => {
+          const price = getServicePrice(a.type);
+          return {
+            id: `APT-${a.id}`,
+            date: a.date || new Date().toLocaleDateString("vi-VN"),
+            customer: a.ownerName || "Khách hàng",
+            amount: price,
+            description: a.type || "Dịch vụ chăm sóc",
+            status: "completed"
+          };
+        });
+      }
+      // Fallbacks
+      const defaultPrice1 = activeCategory === "vet" ? 850000 : 450000;
+      const defaultPrice2 = activeCategory === "vet" ? 1200000 : 250000;
+      const defaultPrice3 = activeCategory === "vet" ? 350000 : 450000;
+      const desc1 = activeCategory === "vet" ? "Gói Khám Sức Khỏe Toàn Diện" : "Gói Tắm & Cắt Tỉa Lông Cao Cấp";
+      const desc2 = activeCategory === "vet" ? "Gói Triệt Sản Thú Cưng" : "Gói Vệ Sinh Răng Miệng Spa";
+      const desc3 = activeCategory === "vet" ? "Khám tổng quát định kỳ" : "Gói Tắm & Cắt Tỉa Lông Cao Cấp";
+      
+      return [
+        { id: "TXN-2001", date: "2026-05-25", customer: "Trần Văn Nam", amount: defaultPrice1, description: desc1, status: "completed" },
+        { id: "TXN-2002", date: "2026-05-26", customer: "Lê Thị Hồng", amount: defaultPrice2, description: desc2, status: "completed" },
+        { id: "TXN-2003", date: "2026-05-27", customer: "Phạm Minh Hoàng", amount: defaultPrice3, description: desc3, status: "completed" }
+      ];
+    }
+  };
+
   const handleExportCSV = () => {
-    const headers = "Mã đơn,Ngày đặt,Khách hàng,Tổng tiền (VNĐ),Trạng thái\n";
-    const dataRows = orders.length > 0 ? orders : [
-      { id: "ORD-1001", orderDate: "2026-05-25", customerName: "Nguyễn Văn Hùng", totalAmount: 450000 },
-      { id: "ORD-1002", orderDate: "2026-05-26", customerName: "Trần Thị Lan", totalAmount: 850000 },
-      { id: "ORD-1003", orderDate: "2026-05-27", customerName: "Lê Minh Tuấn", totalAmount: 350000 }
-    ];
-    const rows = dataRows.map(o => {
-      const orderId = o.orderID || o.id;
-      const date = o.orderDate || new Date(o.createdAt).toLocaleDateString("vi-VN");
-      const customer = o.customerName || "Khách mua hàng";
-      const total = o.totalAmount || o.totalPrice || 0;
-      return `"${orderId}","${date}","${customer}",${total},"Đã hoàn thành"`;
+    const txns = getTransactions();
+    const totalRevenueAmt = txns.reduce((sum, t) => sum + t.amount, 0);
+    const taxInfo = getTaxDetails(totalRevenueAmt, selectedTaxRateType);
+    const headers = "Mã giao dịch,Ngày giao dịch,Khách hàng,Nội dung,Doanh thu (VNĐ),Thuế suất (%),Thuế cần đóng (VNĐ),Trạng thái\n";
+    const rows = txns.map(t => {
+      const taxAmount = taxInfo.isExempt ? 0 : Math.round(t.amount * (taxInfo.rate / 100));
+      return `"${t.id}","${t.date}","${t.customer}","${t.description}",${t.amount},${taxInfo.rate}%,${taxAmount},"Đã nhận thanh toán"`;
     }).join("\n");
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(headers + rows);
     const link = document.createElement("a");
     link.setAttribute("href", csvContent);
-    link.setAttribute("download", `Bao_cao_doanh_thu_${new Date().toLocaleDateString("vi-VN")}.csv`);
+    link.setAttribute("download", `Bao_cao_doanh_thu_va_thue_${activeCategory}_${new Date().toLocaleDateString("vi-VN").replace(/\//g, "-")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    toast.success("Xuất báo cáo doanh thu CSV thành công!");
+    toast.success("Xuất báo cáo doanh thu & thuế CSV thành công!");
   };
 
   if (isLoadingProfile) {
@@ -1278,6 +1611,24 @@ const PartnerDashboard = () => {
                 <Package size={18} /> Quản lý sản phẩm
               </button>
               <button
+                onClick={() => setCurrentTab("orders")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.8rem 1rem",
+                  borderRadius: "10px",
+                  backgroundColor: currentTab === "orders" ? "#f1f5f9" : "transparent",
+                  color: currentTab === "orders" ? "#1e293b" : "#64748b",
+                  fontWeight: currentTab === "orders" ? "700" : "500",
+                  textAlign: "left",
+                  fontSize: "0.95rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                <Clipboard size={18} /> Quản lý đơn hàng
+              </button>
+              <button
                 onClick={() => setCurrentTab("revenue")}
                 style={{
                   display: "flex",
@@ -1355,6 +1706,24 @@ const PartnerDashboard = () => {
               >
                 <Layers size={18} /> Gói dịch vụ y tế
               </button>
+              <button
+                onClick={() => setCurrentTab("revenue")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.8rem 1rem",
+                  borderRadius: "10px",
+                  backgroundColor: currentTab === "revenue" ? "#f1f5f9" : "transparent",
+                  color: currentTab === "revenue" ? "#1e293b" : "#64748b",
+                  fontWeight: currentTab === "revenue" ? "700" : "500",
+                  textAlign: "left",
+                  fontSize: "0.95rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                <TrendingUp size={18} /> Báo cáo doanh thu
+              </button>
             </>
           )}
 
@@ -1414,6 +1783,24 @@ const PartnerDashboard = () => {
                 }}
               >
                 <Layers size={18} /> Gói dịch vụ Spa
+              </button>
+              <button
+                onClick={() => setCurrentTab("revenue")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                  padding: "0.8rem 1rem",
+                  borderRadius: "10px",
+                  backgroundColor: currentTab === "revenue" ? "#f1f5f9" : "transparent",
+                  color: currentTab === "revenue" ? "#1e293b" : "#64748b",
+                  fontWeight: currentTab === "revenue" ? "700" : "500",
+                  textAlign: "left",
+                  fontSize: "0.95rem",
+                  transition: "all 0.2s"
+                }}
+              >
+                <TrendingUp size={18} /> Báo cáo doanh thu
               </button>
             </>
           )}
@@ -2349,10 +2736,25 @@ const PartnerDashboard = () => {
               ? (categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).categoryName || categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).name)
               : prod.category;
             const matchesCategory = !productCategoryFilter || catName === productCategoryFilter;
-            return matchesSearch && matchesCategory;
+
+            let matchesStock = true;
+            if (productStockFilter === "in_stock") {
+              matchesStock = prod.stock > 5;
+            } else if (productStockFilter === "low_stock") {
+              matchesStock = prod.stock > 0 && prod.stock <= 5;
+            } else if (productStockFilter === "out_of_stock") {
+              matchesStock = prod.stock === 0;
+            }
+
+            return matchesSearch && matchesCategory && matchesStock;
           });
 
+          // Inventory KPI Calculations
+          const totalProductsCount = products.length;
+          const activeProductsCount = products.filter(p => p.isActive && p.stock > 0).length;
+          const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= 5).length;
           const outOfStockCount = products.filter(p => p.stock === 0).length;
+          const inactiveProductsCount = products.filter(p => !p.isActive).length;
 
           return (
             <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%" }}>
@@ -2360,155 +2762,222 @@ const PartnerDashboard = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
                   <h1 style={{ fontSize: "2.25rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
-                    Sản phẩm
+                    Quản lý sản phẩm & Kho hàng
                   </h1>
                   <p style={{ color: "#64748b", marginTop: "0.25rem", fontSize: "0.95rem" }}>
-                    Quản lý kho hàng, giá cả và trạng thái sản phẩm.
+                    Theo dõi số lượng hàng tồn kho, điều chỉnh trạng thái bán lẻ và cập nhật danh mục sản phẩm của cửa hàng.
                   </p>
                 </div>
-                <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                  <button
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.6rem 1.25rem",
-                      borderRadius: "9999px",
-                      border: "1px solid #e2e8f0",
-                      backgroundColor: "#ffffff",
-                      color: "#1e293b",
-                      fontSize: "0.9rem",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <Filter size={18} /> Lọc
-                  </button>
-                  <button
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setProductForm({ name: "", category: "Food", price: "", stock: "", image: "", desc: "" });
-                      setShowProductModal(true);
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.6rem 1.25rem",
-                      borderRadius: "9999px",
-                      border: "none",
-                      backgroundColor: "#f05a5b",
-                      color: "#ffffff",
-                      fontSize: "0.9rem",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                      transition: "all 0.2s"
-                    }}
-                  >
-                    <span style={{ fontSize: "16px", fontWeight: "bold" }}>+</span> Thêm sản phẩm mới
-                  </button>
+                <button
+                  onClick={() => {
+                    setEditingProduct(null);
+                    setProductForm({ name: "", category: "Food", price: "", stock: "", image: "", desc: "", unit: "cái" });
+                    setShowProductModal(true);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.6rem 1.5rem",
+                    borderRadius: "9999px",
+                    border: "none",
+                    backgroundColor: "#f05a5b",
+                    color: "#ffffff",
+                    fontSize: "0.9rem",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    boxShadow: "0 4px 6px rgba(0,0,0,0.05)"
+                  }}
+                  className="hover-scale"
+                >
+                  <span style={{ fontSize: "16px", fontWeight: "bold" }}>+</span> Thêm sản phẩm mới
+                </button>
+              </div>
+
+              {/* Inventory KPI Section */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "1.5rem" }}>
+                {/* Total Products */}
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  padding: "1.25rem 1.5rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+                  position: "relative",
+                  border: "1px solid #f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem"
+                }}>
+                  <div style={{
+                    backgroundColor: "#eff6ff",
+                    color: "#3b82f6",
+                    borderRadius: "12px",
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <Package size={24} />
+                  </div>
+                  <div>
+                    <p style={{ color: "#64748b", fontSize: "0.82rem", margin: 0, fontWeight: "600" }}>Tổng sản phẩm</p>
+                    <h2 style={{ fontSize: "1.5rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                      {totalProductsCount} <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>mặt hàng</span>
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Active Products */}
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  padding: "1.25rem 1.5rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+                  position: "relative",
+                  border: "1px solid #f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem"
+                }}>
+                  <div style={{
+                    backgroundColor: "#ecfdf5",
+                    color: "#10b981",
+                    borderRadius: "12px",
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <CheckCircle size={24} />
+                  </div>
+                  <div>
+                    <p style={{ color: "#64748b", fontSize: "0.82rem", margin: 0, fontWeight: "600" }}>Đang kinh doanh</p>
+                    <h2 style={{ fontSize: "1.5rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                      {activeProductsCount} <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>mặt hàng</span>
+                    </h2>
+                  </div>
+                </div>
+
+                {/* Warning Stock */}
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  padding: "1.25rem 1.5rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+                  position: "relative",
+                  border: "1px solid #f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem"
+                }}>
+                  <div style={{
+                    backgroundColor: (outOfStockCount > 0) ? "#fff7ed" : "#f1f5f9",
+                    color: (outOfStockCount > 0) ? "#f97316" : "#64748b",
+                    borderRadius: "12px",
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <AlertTriangle size={24} />
+                  </div>
+                  <div>
+                    <p style={{ color: "#64748b", fontSize: "0.82rem", margin: 0, fontWeight: "600" }}>Cảnh báo hết/sắp hết</p>
+                    <h2 style={{ fontSize: "1.5rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                      {outOfStockCount + lowStockCount} <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>mục</span>
+                    </h2>
+                  </div>
+                  {outOfStockCount > 0 && (
+                    <span style={{ position: "absolute", top: "10px", right: "12px", backgroundColor: "#fee2e2", color: "#ef4444", fontSize: "0.7rem", padding: "2px 6px", borderRadius: "9999px", fontWeight: "700" }}>
+                      {outOfStockCount} hết hàng
+                    </span>
+                  )}
+                </div>
+
+                {/* Inactive Products */}
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  padding: "1.25rem 1.5rem",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
+                  position: "relative",
+                  border: "1px solid #f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "1rem"
+                }}>
+                  <div style={{
+                    backgroundColor: "#f8fafc",
+                    color: "#94a3b8",
+                    borderRadius: "12px",
+                    width: "48px",
+                    height: "48px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                  }}>
+                    <XCircle size={24} />
+                  </div>
+                  <div>
+                    <p style={{ color: "#64748b", fontSize: "0.82rem", margin: 0, fontWeight: "600" }}>Đang tạm ngưng</p>
+                    <h2 style={{ fontSize: "1.5rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                      {inactiveProductsCount} <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>mục</span>
+                    </h2>
+                  </div>
                 </div>
               </div>
 
-              {/* Top KPIs section */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1.5rem" }}>
-                {/* KPI 1 */}
+              {/* Main Content: Full Width Catalog */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem", width: "100%" }}>
+                {/* Search, Tag Filters & Dropdowns Row */}
                 <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "1rem",
                   backgroundColor: "#ffffff",
+                  padding: "1rem 1.5rem",
                   borderRadius: "20px",
-                  padding: "1.5rem",
-                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
-                  position: "relative",
-                  border: "1px solid #f1f5f9"
+                  border: "1px solid #f1f5f9",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                  flexWrap: "wrap"
                 }}>
-                  <p style={{ color: "#64748b", fontSize: "0.85rem", margin: 0, fontWeight: "600" }}>Doanh thu tháng này</p>
-                  <h2 style={{ fontSize: "1.85rem", fontWeight: "800", color: "#1e293b", margin: "0.5rem 0" }}>
-                    {(monthlyRevenue / 1000000).toFixed(1)}M <span style={{ fontSize: "1rem", fontWeight: "600", color: "#64748b" }}>VNĐ</span>
-                  </h2>
-                  <div style={{ fontSize: "0.82rem", color: "#f05a5b", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "14px" }}>↗</span> +12.5% so với tháng trước
+                  {/* Search Bar */}
+                  <div style={{ position: "relative", flex: 1, minWidth: "260px" }}>
+                    <Search size={18} style={{
+                      position: "absolute",
+                      left: "1rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "#94a3b8"
+                    }} />
+                    <input
+                      type="text"
+                      placeholder="Tìm tên sản phẩm cần kiểm kho..."
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 1rem 0.6rem 2.5rem",
+                        borderRadius: "9999px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "0.9rem",
+                        backgroundColor: "#ffffff",
+                        outline: "none",
+                        color: "#1e293b",
+                        boxSizing: "border-box"
+                      }}
+                    />
                   </div>
-                  <div style={{ position: "absolute", right: "1.5rem", top: "1.5rem", opacity: 0.15 }}>
-                    <Wallet size={48} color="#64748b" />
-                  </div>
-                </div>
 
-                {/* KPI 2 */}
-                <div style={{
-                  backgroundColor: "#ffffff",
-                  borderRadius: "20px",
-                  padding: "1.5rem",
-                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
-                  position: "relative",
-                  border: "1px solid #f1f5f9"
-                }}>
-                  <p style={{ color: "#64748b", fontSize: "0.85rem", margin: 0, fontWeight: "600" }}>Đơn hàng mới</p>
-                  <h2 style={{ fontSize: "1.85rem", fontWeight: "800", color: "#1e293b", margin: "0.5rem 0" }}>
-                    {totalOrdersSold || 128} <span style={{ fontSize: "1rem", fontWeight: "600", color: "#64748b" }}>đơn</span>
-                  </h2>
-                  <div style={{ fontSize: "0.82rem", color: "#f05a5b", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontSize: "14px" }}>↗</span> +5% so với tháng trước
-                  </div>
-                  <div style={{ position: "absolute", right: "1.5rem", top: "1.5rem", opacity: 0.15 }}>
-                    <ShoppingBag size={48} color="#64748b" />
-                  </div>
-                </div>
-
-                {/* KPI 3 */}
-                <div style={{
-                  backgroundColor: "#ffffff",
-                  borderRadius: "20px",
-                  padding: "1.5rem",
-                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
-                  position: "relative",
-                  border: "1px solid #f1f5f9"
-                }}>
-                  <p style={{ color: "#64748b", fontSize: "0.85rem", margin: 0, fontWeight: "600" }}>Sản phẩm hết hàng</p>
-                  <h2 style={{ fontSize: "1.85rem", fontWeight: "800", color: "#1e293b", margin: "0.5rem 0" }}>
-                    {outOfStockCount || 12} <span style={{ fontSize: "1rem", fontWeight: "600", color: "#64748b" }}>mục</span>
-                  </h2>
-                  <div style={{ fontSize: "0.82rem", color: "#b45309", fontWeight: "600", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <AlertTriangle size={14} style={{ color: "#d97706" }} /> Cần nhập hàng ngay
-                  </div>
-                  <div style={{ position: "absolute", right: "1.5rem", top: "1.5rem", opacity: 0.15 }}>
-                    <AlertTriangle size={48} color="#ef4444" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Content Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: "1.5rem" }}>
-                {/* Left Side: Search, Filters & Products Table */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {/* Search and Category tags row */}
-                  <div style={{ display: "flex", alignItems: "center", justifyItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
-                    <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
-                      <Search size={18} style={{
-                        position: "absolute",
-                        left: "1rem",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: "#94a3b8"
-                      }} />
-                      <input
-                        type="text"
-                        placeholder="Tìm kiếm sản phẩm..."
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "0.6rem 1rem 0.6rem 2.5rem",
-                          borderRadius: "9999px",
-                          border: "1px solid #e2e8f0",
-                          fontSize: "0.9rem",
-                          backgroundColor: "#ffffff",
-                          outline: "none"
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {/* Right Filters Group */}
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                    {/* Category tags */}
+                    <div style={{ display: "flex", gap: "0.4rem" }}>
                       {["Thức ăn", "Phụ kiện", "Dịch vụ"].map(cat => {
                         const isSelected = productCategoryFilter === cat;
                         return (
@@ -2519,295 +2988,643 @@ const PartnerDashboard = () => {
                               padding: "0.5rem 1rem",
                               borderRadius: "9999px",
                               border: "none",
-                              backgroundColor: isSelected ? "#e2e8f0" : "#f1f5f9",
-                              color: isSelected ? "#1e293b" : "#475569",
+                              backgroundColor: isSelected ? "#f05a5b" : "#f1f5f9",
+                              color: isSelected ? "#ffffff" : "#475569",
                               fontSize: "0.85rem",
-                              fontWeight: "600",
+                              fontWeight: "700",
                               cursor: "pointer",
                               transition: "all 0.2s"
                             }}
+                            className="hover-scale"
                           >
                             {cat}
                           </button>
                         );
                       })}
                     </div>
-                  </div>
 
-                  {/* Table Card */}
-                  <div style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "20px",
-                    overflow: "hidden",
-                    border: "1px solid #f1f5f9",
-                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
-                  }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                      <thead>
-                        <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Sản phẩm</th>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Danh mục</th>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Giá (VNĐ)</th>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Tổn kho</th>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Trạng thái</th>
-                          <th style={{ padding: "1rem 1.25rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b", textAlign: "center" }}>Hành động</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredProducts.length > 0 ? (
-                          filteredProducts.map((prod) => {
-                            const catName = prod.category === "Khác" && prod.categoryID && categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID)
-                              ? (categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).categoryName || categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).name)
-                              : prod.category;
-
-                            let statusText = "Đang bán";
-                            let statusBg = "#e0e7ff";
-                            let statusColor = "#6366f1";
-
-                            if (prod.stock === 0) {
-                              statusText = "Hết hàng";
-                              statusBg = "#fee2e2";
-                              statusColor = "#f87171";
-                            } else if (!prod.isActive) {
-                              statusText = "Tạm ngưng";
-                              statusBg = "#f1f5f9";
-                              statusColor = "#94a3b8";
-                            }
-
-                            return (
-                              <tr key={prod.id} style={{ borderBottom: "1px solid #f8fafc" }}>
-                                <td style={{ padding: "0.75rem 1.25rem" }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                                    <img
-                                      src={prod.image || "https://via.placeholder.com/50"}
-                                      alt={prod.name}
-                                      style={{ width: "45px", height: "45px", objectFit: "cover", borderRadius: "10px", backgroundColor: "#f8fafc" }}
-                                      onError={(e) => { e.target.src = "https://via.placeholder.com/50"; }}
-                                    />
-                                    <span style={{ fontWeight: "600", color: "#1e293b", fontSize: "0.9rem" }}>{prod.name}</span>
-                                  </div>
-                                </td>
-                                <td style={{ padding: "0.75rem 1.25rem", fontSize: "0.88rem", color: "#64748b" }}>
-                                  {catName}
-                                </td>
-                                <td style={{ padding: "0.75rem 1.25rem", fontWeight: "600", color: "#1e293b", fontSize: "0.9rem" }}>
-                                  {prod.price.toLocaleString("vi-VN")}
-                                </td>
-                                <td style={{ padding: "0.75rem 1.25rem", fontSize: "0.9rem", color: prod.stock === 0 ? "#f87171" : "#1e293b", fontWeight: "600" }}>
-                                  {prod.stock !== null && prod.stock !== undefined ? prod.stock : "-"}
-                                </td>
-                                <td style={{ padding: "0.75rem 1.25rem" }}>
-                                  <span style={{
-                                    fontSize: "0.78rem",
-                                    padding: "4px 10px",
-                                    borderRadius: "9999px",
-                                    fontWeight: "600",
-                                    backgroundColor: statusBg,
-                                    color: statusColor,
-                                    display: "inline-block"
-                                  }}>
-                                    {statusText}
-                                  </span>
-                                </td>
-                                <td style={{ padding: "0.75rem 1.25rem", textAlign: "center" }}>
-                                  <div style={{ display: "flex", gap: "0.4rem", justifyContent: "center" }}>
-                                    <button
-                                      onClick={() => handleEditProduct(prod)}
-                                      style={{ padding: "6px", backgroundColor: "#f1f5f9", border: "none", borderRadius: "8px", color: "#64748b", cursor: "pointer" }}
-                                    >
-                                      <Edit size={14} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteProduct(prod.id)}
-                                      style={{ padding: "6px", backgroundColor: "#fee2e2", border: "none", borderRadius: "8px", color: "#ef4444", cursor: "pointer" }}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan="6" style={{ padding: "2rem", textAlign: "center", color: "#94a3b8" }}>
-                              Không tìm thấy sản phẩm nào khớp với bộ lọc.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-
-                    {/* Pagination Footer */}
-                    <div style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "1rem 1.5rem",
-                      borderTop: "1px solid #f1f5f9",
-                      fontSize: "0.85rem",
-                      color: "#64748b"
-                    }}>
-                      <span>Hiển thị 1-{filteredProducts.length} trong {products.length} sản phẩm</span>
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <button style={{
-                          padding: "0.35rem 0.6rem",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "6px",
-                          backgroundColor: "#ffffff",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center"
-                        }}>
-                          <ChevronLeft size={16} />
-                        </button>
-                        <button style={{
-                          padding: "0.35rem 0.6rem",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "6px",
-                          backgroundColor: "#ffffff",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center"
-                        }}>
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-                    </div>
+                    {/* Stock Status Dropdown */}
+                    <select
+                      value={productStockFilter}
+                      onChange={(e) => setProductStockFilter(e.target.value)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        borderRadius: "9999px",
+                        border: "1px solid #cbd5e1",
+                        backgroundColor: "#ffffff",
+                        fontSize: "0.88rem",
+                        fontWeight: "600",
+                        color: "#475569",
+                        outline: "none",
+                        cursor: "pointer",
+                        height: "36px"
+                      }}
+                    >
+                      <option value="all">Tất cả kho hàng</option>
+                      <option value="in_stock">Còn hàng (&gt; 5)</option>
+                      <option value="low_stock">Sắp hết hàng (1 - 5)</option>
+                      <option value="out_of_stock">Hết hàng (0)</option>
+                    </select>
                   </div>
                 </div>
 
-                {/* Right Side: Charts & Actions */}
-                <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-                  {/* Revenue Chart Card */}
+                {/* Table Card (Full Width) */}
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  overflow: "hidden",
+                  border: "1px solid #f1f5f9",
+                  boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
+                }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                    <thead>
+                      <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>Sản phẩm</th>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>Danh mục</th>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>Đơn giá (VNĐ)</th>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>Số lượng tồn kho (Điều chỉnh nhanh)</th>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>Trạng thái bán</th>
+                        <th style={{ padding: "1.25rem 1.5rem", fontSize: "0.85rem", fontWeight: "700", color: "#64748b", textAlign: "center" }}>Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.length > 0 ? (
+                        filteredProducts.map((prod) => {
+                          const catName = prod.category === "Khác" && prod.categoryID && categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID)
+                            ? (categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).categoryName || categoriesList.find(c => (c.categoryID || c.id) === prod.categoryID).name)
+                            : prod.category;
+
+                          let statusText = "Đang bán";
+                          let statusBg = "#ecfdf5";
+                          let statusColor = "#10b981";
+
+                          if (prod.stock === 0) {
+                            statusText = "Hết hàng";
+                            statusBg = "#fee2e2";
+                            statusColor = "#ef4444";
+                          } else if (!prod.isActive) {
+                            statusText = "Tạm ngưng";
+                            statusBg = "#f1f5f9";
+                            statusColor = "#94a3b8";
+                          }
+
+                          return (
+                            <tr key={prod.id} style={{ borderBottom: "1px solid #f8fafc", transition: "background-color 0.2s" }} className="hover-row">
+                              <td style={{ padding: "0.85rem 1.5rem" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                                  <img
+                                    src={prod.image || "https://via.placeholder.com/50"}
+                                    alt={prod.name}
+                                    style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "12px", backgroundColor: "#f8fafc", border: "1px solid #e2e8f0" }}
+                                    onError={(e) => { e.target.src = "https://via.placeholder.com/50"; }}
+                                  />
+                                  <div>
+                                    <p style={{ margin: 0, fontWeight: "700", color: "#1e293b", fontSize: "0.92rem" }}>{prod.name}</p>
+                                    <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "#94a3b8" }}>Đơn vị: {prod.unit || "cái"}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: "0.85rem 1.5rem", fontSize: "0.88rem", color: "#475569", fontWeight: "600" }}>
+                                <span style={{ backgroundColor: "#f8fafc", padding: "4px 10px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                                  {catName}
+                                </span>
+                              </td>
+                              <td style={{ padding: "0.85rem 1.5rem", fontWeight: "700", color: "#1e293b", fontSize: "0.95rem" }}>
+                                {prod.price.toLocaleString("vi-VN")} ₫
+                              </td>
+                              {/* Quick stock adjust UI */}
+                              <td style={{ padding: "0.85rem 1.5rem" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                                  <button 
+                                    onClick={() => handleQuickStockUpdate(prod, prod.stock - 1)}
+                                    disabled={prod.stock <= 0}
+                                    style={{
+                                      border: "1px solid #cbd5e1",
+                                      borderRadius: "6px",
+                                      width: "28px",
+                                      height: "28px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      backgroundColor: prod.stock <= 0 ? "#f1f5f9" : "#ffffff",
+                                      cursor: prod.stock <= 0 ? "not-allowed" : "pointer",
+                                      color: "#475569",
+                                      fontWeight: "bold",
+                                      fontSize: "14px",
+                                      transition: "all 0.2s"
+                                    }}
+                                    className="hover-scale"
+                                  >-</button>
+                                  <span style={{ 
+                                    minWidth: "32px", 
+                                    textAlign: "center", 
+                                    fontWeight: "800", 
+                                    fontSize: "1rem",
+                                    color: prod.stock === 0 ? "#ef4444" : (prod.stock <= 5 ? "#f97316" : "#1e293b") 
+                                  }}>
+                                    {prod.stock !== null && prod.stock !== undefined ? prod.stock : "-"}
+                                  </span>
+                                  <button 
+                                    onClick={() => handleQuickStockUpdate(prod, prod.stock + 1)}
+                                    style={{
+                                      border: "1px solid #cbd5e1",
+                                      borderRadius: "6px",
+                                      width: "28px",
+                                      height: "28px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      backgroundColor: "#ffffff",
+                                      cursor: "pointer",
+                                      color: "#475569",
+                                      fontWeight: "bold",
+                                      fontSize: "14px",
+                                      transition: "all 0.2s"
+                                    }}
+                                    className="hover-scale"
+                                  >+</button>
+                                </div>
+                              </td>
+                              {/* Clickable Status Badge to Toggle Active state */}
+                              <td style={{ padding: "0.85rem 1.5rem" }}>
+                                <span
+                                  onClick={() => handleQuickStatusToggle(prod)}
+                                  style={{
+                                    fontSize: "0.78rem",
+                                    padding: "6px 12px",
+                                    borderRadius: "9999px",
+                                    fontWeight: "700",
+                                    backgroundColor: statusBg,
+                                    color: statusColor,
+                                    display: "inline-block",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s",
+                                    border: `1px solid ${statusColor}1A`
+                                  }}
+                                  title="Click để bật/tắt bán hàng nhanh"
+                                  className="hover-scale"
+                                >
+                                  {statusText}
+                                </span>
+                              </td>
+                              <td style={{ padding: "0.85rem 1.5rem", textAlign: "center" }}>
+                                <div style={{ display: "flex", gap: "0.5rem", justifyContent: "center" }}>
+                                  <button
+                                    onClick={() => handleEditProduct(prod)}
+                                    style={{ padding: "8px", backgroundColor: "#f1f5f9", border: "none", borderRadius: "10px", color: "#64748b", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                                    className="hover-scale"
+                                    title="Sửa sản phẩm"
+                                  >
+                                    <Edit size={15} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteProduct(prod.id)}
+                                    style={{ padding: "8px", backgroundColor: "#fee2e2", border: "none", borderRadius: "10px", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s" }}
+                                    className="hover-scale"
+                                    title="Xóa sản phẩm"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan="6" style={{ padding: "3rem", textAlign: "center", color: "#94a3b8", fontSize: "0.95rem" }}>
+                            <Package size={36} style={{ color: "#cbd5e1", marginBottom: "0.5rem" }} />
+                            <p style={{ margin: 0 }}>Không tìm thấy sản phẩm nào khớp với bộ lọc.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Pagination Footer */}
                   <div style={{
-                    backgroundColor: "#ffffff",
-                    borderRadius: "20px",
-                    padding: "1.5rem",
-                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
-                    border: "1px solid #f1f5f9"
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "1.25rem 1.5rem",
+                    borderTop: "1px solid #f1f5f9",
+                    fontSize: "0.85rem",
+                    color: "#64748b",
+                    backgroundColor: "#f8fafc"
                   }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-                      <h3 style={{ fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", margin: 0 }}>Biểu đồ doanh thu</h3>
-                      <MoreVertical size={20} style={{ color: "#94a3b8", cursor: "pointer" }} />
-                    </div>
-
-                    <div style={{ display: "flex", gap: "1rem", height: "180px", position: "relative" }}>
-                      {/* Y-Axis scale labels */}
-                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", color: "#94a3b8", fontSize: "0.75rem", paddingBottom: "20px" }}>
-                        <span>50M</span>
-                        <span>25M</span>
-                        <span>0</span>
-                      </div>
-
-                      {/* Bar columns */}
-                      <div style={{ display: "flex", justifyContent: "space-around", alignItems: "flex-end", flex: 1, paddingBottom: "20px", borderBottom: "1px solid #f1f5f9" }}>
-                        {[
-                          { label: "T1", val: 35 },
-                          { label: "T2", val: 55 },
-                          { label: "T3", val: 40 },
-                          { label: "T4", val: 75 },
-                          { label: "T5", val: 90, primary: true }
-                        ].map((item, index) => (
-                          <div key={index} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "15%", height: "100%", justifyContent: "flex-end" }}>
-                            <div style={{
-                              height: `${item.val}%`,
-                              width: "100%",
-                              backgroundColor: item.primary ? "#f05a5b" : "#e2e8f0",
-                              borderRadius: "4px",
-                              transition: "all 0.3s"
-                            }}></div>
-                            <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "6px" }}>{item.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Actions Suggestion Card */}
-                  <div style={{
-                    background: "linear-gradient(135deg, #fdf8f6 0%, #f1f5f9 100%)",
-                    borderRadius: "20px",
-                    padding: "1.5rem",
-                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)",
-                    border: "1px solid #f1f5f9"
-                  }}>
-                    <h3 style={{ fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", margin: "0 0 1.25rem" }}>Gợi ý hành động</h3>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                      {/* Suggestion 1 */}
-                      <div style={{
+                    <span>Hiển thị 1-{filteredProducts.length} trong {products.length} sản phẩm</span>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <button style={{
+                        padding: "0.4rem 0.75rem",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
+                        backgroundColor: "#ffffff",
+                        cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.75rem",
+                        transition: "all 0.2s"
+                      }} className="hover-scale">
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button style={{
+                        padding: "0.4rem 0.75rem",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: "8px",
                         backgroundColor: "#ffffff",
-                        padding: "1rem",
-                        borderRadius: "14px",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
-                      }}>
-                        <div style={{
-                          backgroundColor: "#fef2f2",
-                          color: "#ef4444",
-                          borderRadius: "10px",
-                          width: "36px",
-                          height: "36px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}>
-                          <Store size={20} />
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontWeight: "700", fontSize: "0.88rem", color: "#1e293b" }}>Nhập thêm hàng</p>
-                          <p style={{ margin: 0, fontSize: "0.78rem", color: "#64748b" }}>{outOfStockCount || 12} sản phẩm đang hết</p>
-                        </div>
-                      </div>
-
-                      {/* Suggestion 2 */}
-                      <div style={{
+                        cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.75rem",
-                        backgroundColor: "#ffffff",
-                        padding: "1rem",
-                        borderRadius: "14px",
-                        boxShadow: "0 2px 4px rgba(0,0,0,0.02)"
-                      }}>
-                        <div style={{
-                          backgroundColor: "#f5f3ff",
-                          color: "#8b5cf6",
-                          borderRadius: "10px",
-                          width: "36px",
-                          height: "36px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}>
-                          <Megaphone size={20} />
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontWeight: "700", fontSize: "0.88rem", color: "#1e293b" }}>Tạo khuyến mãi mới</p>
-                          <p style={{ margin: 0, fontSize: "0.78rem", color: "#64748b" }}>Tăng doanh số cuối tuần</p>
-                        </div>
-                      </div>
+                        transition: "all 0.2s"
+                      }} className="hover-scale">
+                        <ChevronRight size={16} />
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
+              <style>{`
+                .hover-row:hover {
+                  background-color: #f8fafc;
+                }
+              `}</style>
+            </div>
+          );
+        })()}
+
+        {/* SHOP WORKSPACE - ORDER MANAGEMENT TAB */}
+        {activeCategory === "shop" && currentTab === "orders" && (() => {
+          // Filter and Search logic
+          const filteredOrders = orders.filter(order => {
+            const matchesSearch = 
+              order.orderID?.toString().toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+              order.customerName?.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
+              order.customerPhone?.includes(orderSearchQuery);
+            
+            let matchesStatus = true;
+            if (orderFilterStatus === "Pending") {
+              matchesStatus = order.status === "Pending";
+            } else if (orderFilterStatus === "Shipping") {
+              matchesStatus = order.status === "Shipping";
+            } else if (orderFilterStatus === "Completed") {
+              matchesStatus = order.status === "Completed";
+            } else if (orderFilterStatus === "Cancelled") {
+              matchesStatus = order.status === "Cancelled_ByUser" || order.status === "Cancelled_BomHang";
+            }
+
+            return matchesSearch && matchesStatus;
+          });
+
+          // Stats calculations
+          const totalCount = orders.length;
+          const pendingCount = orders.filter(o => o.status === "Pending").length;
+          const shippingCount = orders.filter(o => o.status === "Shipping").length;
+          const completedCount = orders.filter(o => o.status === "Completed").length;
+
+          // Status config for rendering
+          const orderStatusLabels = {
+            Pending: { label: "Chờ xác nhận", color: "#d97706", bgColor: "#fef3c7", icon: "⏳" },
+            Shipping: { label: "Đang giao hàng", color: "#2563eb", bgColor: "#dbeafe", icon: "🚚" },
+            Completed: { label: "Đã hoàn thành", color: "#059669", bgColor: "#d1fae5", icon: "✓" },
+            Cancelled_ByUser: { label: "Hủy bởi khách", color: "#dc2626", bgColor: "#fee2e2", icon: "✕" },
+            Cancelled_BomHang: { label: "Bom hàng", color: "#b91c1c", bgColor: "#fecaca", icon: "❌" }
+          };
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%" }}>
+              {/* Header */}
+              <div>
+                <h1 style={{ fontSize: "2.25rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                  Quản lý đơn hàng & Vận chuyển
+                </h1>
+                <p style={{ color: "#64748b", marginTop: "0.25rem", fontSize: "0.95rem" }}>
+                  Theo dõi trạng thái đơn hàng, duyệt phê duyệt giao dịch và cập nhật tiến độ vận đơn cho khách hàng.
+                </p>
+              </div>
+
+              {/* Stats Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  padding: "1.5rem",
+                  borderRadius: "16px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #e2e8f0",
+                  borderTop: "4px solid #64748b"
+                }}>
+                  <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "#64748b", margin: 0, textTransform: "uppercase" }}>Tổng số đơn hàng</p>
+                  <p style={{ fontSize: "2.25rem", fontWeight: "800", color: "#1e293b", margin: "0.5rem 0 0" }}>{totalCount}</p>
+                </div>
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  padding: "1.5rem",
+                  borderRadius: "16px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #e2e8f0",
+                  borderTop: "4px solid #d97706"
+                }}>
+                  <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "#d97706", margin: 0, textTransform: "uppercase" }}>Chờ xác nhận</p>
+                  <p style={{ fontSize: "2.25rem", fontWeight: "800", color: "#d97706", margin: "0.5rem 0 0" }}>{pendingCount}</p>
+                </div>
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  padding: "1.5rem",
+                  borderRadius: "16px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #e2e8f0",
+                  borderTop: "4px solid #2563eb"
+                }}>
+                  <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "#2563eb", margin: 0, textTransform: "uppercase" }}>Đang giao hàng</p>
+                  <p style={{ fontSize: "2.25rem", fontWeight: "800", color: "#2563eb", margin: "0.5rem 0 0" }}>{shippingCount}</p>
+                </div>
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  padding: "1.5rem",
+                  borderRadius: "16px",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                  border: "1px solid #e2e8f0",
+                  borderTop: "4px solid #059669"
+                }}>
+                  <p style={{ fontSize: "0.85rem", fontWeight: "700", color: "#059669", margin: 0, textTransform: "uppercase" }}>Đã hoàn thành</p>
+                  <p style={{ fontSize: "2.25rem", fontWeight: "800", color: "#059669", margin: "0.5rem 0 0" }}>{completedCount}</p>
+                </div>
+              </div>
+
+              {/* Filters & Search */}
+              <div style={{
+                backgroundColor: "#ffffff",
+                padding: "1rem",
+                borderRadius: "16px",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                border: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "1rem"
+              }}>
+                {/* Filter Pills */}
+                <div style={{ display: "flex", gap: "0.5rem", overflowX: "auto" }}>
+                  {["all", "Pending", "Shipping", "Completed", "Cancelled"].map((status) => {
+                    let text = "Tất cả";
+                    let badgeBg = "#f1f5f9";
+                    let badgeColor = "#475569";
+                    if (status === "Pending") { text = "Chờ xác nhận"; badgeBg = "#fef3c7"; badgeColor = "#b45309"; }
+                    else if (status === "Shipping") { text = "Đang giao"; badgeBg = "#dbeafe"; badgeColor = "#1d4ed8"; }
+                    else if (status === "Completed") { text = "Hoàn thành"; badgeBg = "#d1fae5"; badgeColor = "#047857"; }
+                    else if (status === "Cancelled") { text = "Hủy đơn"; badgeBg = "#fee2e2"; badgeColor = "#b91c1c"; }
+
+                    const isActive = orderFilterStatus === status;
+
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setOrderFilterStatus(status)}
+                        style={{
+                          padding: "0.5rem 1rem",
+                          borderRadius: "9999px",
+                          border: "none",
+                          backgroundColor: isActive ? badgeColor : badgeBg,
+                          color: isActive ? "#ffffff" : badgeColor,
+                          fontWeight: "700",
+                          fontSize: "0.85rem",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        {text}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Search */}
+                <div style={{ position: "relative", width: "100%", maxWidth: "300px" }}>
+                  <Search size={18} style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo Mã đơn, Khách hàng..."
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "0.5rem 1rem 0.5rem 2.5rem",
+                      borderRadius: "9999px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.9rem",
+                      boxSizing: "border-box"
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Order Cards Grid */}
+              {filteredOrders.length > 0 ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1rem" }}>
+                  {filteredOrders.map(order => {
+                    const labelInfo = orderStatusLabels[order.status] || { label: order.status, color: "#64748b", bgColor: "#f1f5f9", icon: "📦" };
+                    const formattedOrderDate = order.orderDate
+                      ? new Date(order.orderDate).toLocaleDateString("vi-VN")
+                      : new Date().toLocaleDateString("vi-VN");
+
+                    return (
+                      <div
+                        key={order.orderID}
+                        style={{
+                          backgroundColor: "#ffffff",
+                          borderRadius: "16px",
+                          border: "1px solid #e2e8f0",
+                          borderLeft: `5px solid ${labelInfo.color}`,
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+                          overflow: "hidden",
+                          transition: "all 0.2s"
+                        }}
+                        className="hover-scale"
+                      >
+                        {/* Order Card Header */}
+                        <div style={{
+                          padding: "1.25rem",
+                          borderBottom: "1px solid #f1f5f9",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: "0.5rem"
+                        }}>
+                          <div>
+                            <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: "600" }}>MÃ ĐƠN HÀNG</span>
+                            <h3 style={{ margin: "0.15rem 0 0", color: "#ef4444", fontSize: "1.2rem", fontWeight: "800" }}>
+                              #{order.orderID}
+                            </h3>
+                          </div>
+                          
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                            <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>Ngày đặt: {formattedOrderDate}</span>
+                            <span style={{
+                              padding: "0.35rem 0.75rem",
+                              borderRadius: "9999px",
+                              backgroundColor: labelInfo.bgColor,
+                              color: labelInfo.color,
+                              fontWeight: "700",
+                              fontSize: "0.8rem",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.25rem"
+                            }}>
+                              <span>{labelInfo.icon}</span>
+                              <span>{labelInfo.label}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Order Card Details */}
+                        <div style={{
+                          padding: "1.25rem",
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                          gap: "1.5rem"
+                        }}>
+                          {/* Left Column: Customer details */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            <p style={{ margin: 0, fontSize: "0.85rem", color: "#94a3b8", fontWeight: "700" }}>THÔNG TIN GIAO HÀNG</p>
+                            <p style={{ margin: 0, fontWeight: "700", color: "#1e293b", fontSize: "1rem" }}>{order.customerName}</p>
+                            
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "#475569", fontSize: "0.9rem" }}>
+                              <Phone size={14} style={{ color: "#64748b" }} />
+                              <span>{order.customerPhone}</span>
+                            </div>
+                            
+                            <div style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", color: "#475569", fontSize: "0.9rem" }}>
+                              <MapPin size={14} style={{ color: "#64748b", marginTop: "0.15rem", flexShrink: 0 }} />
+                              <span>{order.shippingAddress}</span>
+                            </div>
+                          </div>
+
+                          {/* Right Column: Pricing & Note */}
+                          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: "0.75rem" }}>
+                            <div>
+                              <p style={{ margin: "0 0 0.25rem", fontSize: "0.85rem", color: "#94a3b8", fontWeight: "700" }}>TỔNG THANH TOÁN</p>
+                              <p style={{ margin: 0, fontSize: "1.5rem", fontWeight: "800", color: "#ef4444" }}>
+                                {(order.totalAmount || 0).toLocaleString("vi-VN")} đ
+                              </p>
+                            </div>
+
+                            {order.note && (
+                              <div style={{
+                                backgroundColor: "#fffbeb",
+                                borderLeft: "3px solid #f59e0b",
+                                padding: "0.5rem 0.75rem",
+                                borderRadius: "6px",
+                                fontSize: "0.85rem",
+                                color: "#78350f"
+                              }}>
+                                <strong>Ghi chú:</strong> {order.note}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Order Card Actions */}
+                        <div style={{
+                          padding: "1rem 1.25rem",
+                          backgroundColor: "#f8fafc",
+                          borderTop: "1px solid #f1f5f9",
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: "0.75rem"
+                        }}>
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setOrderDetailData(null);
+                              setActiveOrderModal("details");
+                              fetchOrderDetailData(order.orderID);
+                            }}
+                            style={{
+                              padding: "0.5rem 1.25rem",
+                              borderRadius: "8px",
+                              border: "1px solid #cbd5e1",
+                              backgroundColor: "#ffffff",
+                              color: "#475569",
+                              fontWeight: "700",
+                              fontSize: "0.85rem",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                              transition: "all 0.2s"
+                            }}
+                            className="hover-scale"
+                          >
+                            <Eye size={14} /> Chi tiết
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              setSelectedOrder(order);
+                              setSelectedOrderStatus(order.status);
+                              setActiveOrderModal("updateStatus");
+                            }}
+                            disabled={order.status === "Completed" || order.status === "Cancelled_ByUser" || order.status === "Cancelled_BomHang"}
+                            style={{
+                              padding: "0.5rem 1.25rem",
+                              borderRadius: "8px",
+                              border: "none",
+                              backgroundColor: (order.status === "Completed" || order.status === "Cancelled_ByUser" || order.status === "Cancelled_BomHang")
+                                ? "#cbd5e1"
+                                : "#ef4444",
+                              color: "#ffffff",
+                              fontWeight: "700",
+                              fontSize: "0.85rem",
+                              cursor: (order.status === "Completed" || order.status === "Cancelled_ByUser" || order.status === "Cancelled_BomHang")
+                                ? "not-allowed"
+                                : "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "0.35rem",
+                              transition: "all 0.2s"
+                            }}
+                            className="hover-scale"
+                          >
+                            <Edit size={14} /> Cập nhật trạng thái
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{
+                  backgroundColor: "#ffffff",
+                  borderRadius: "16px",
+                  border: "1px solid #e2e8f0",
+                  padding: "4rem 2rem",
+                  textAlign: "center",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)"
+                }}>
+                  <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📦</div>
+                  <p style={{ fontSize: "1.1rem", fontWeight: "700", color: "#475569", margin: 0 }}>
+                    Không có đơn hàng nào
+                  </p>
+                  <p style={{ fontSize: "0.9rem", color: "#94a3b8", marginTop: "0.25rem" }}>
+                    Các đơn hàng khớp với bộ lọc của bạn sẽ hiển thị tại đây.
+                  </p>
+                </div>
+              )}
             </div>
           );
         })()}
 
         {/* SHOP WORKSPACE - REVENUE STATISTICS TAB */}
-        {activeCategory === "shop" && currentTab === "revenue" && (
+        {currentTab === "revenue" && (
           <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem", width: "100%" }}>
             {/* Header with Export Button */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <h1 style={{ fontSize: "2.25rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
-                  Thống kê Doanh thu
+                  Thống kê Doanh thu & Thuế
                 </h1>
                 <p style={{ color: "#64748b", marginTop: "0.25rem", fontSize: "0.95rem" }}>
-                  Số liệu chi tiết về kết quả kinh doanh, báo cáo giao dịch và tăng trưởng theo tháng.
+                  Số liệu chi tiết về kết quả kinh doanh, báo cáo giao dịch dịch vụ và nghĩa vụ thuế cần đóng.
                 </p>
               </div>
               <button
@@ -2819,12 +3636,13 @@ const PartnerDashboard = () => {
                   padding: "0.6rem 1.25rem",
                   borderRadius: "9999px",
                   border: "none",
-                  backgroundColor: "#f05a5b",
+                  backgroundColor: activeCategory === "spa" ? "#7066e0" : activeCategory === "vet" ? "#4ecdc4" : "#f05a5b",
                   color: "#ffffff",
                   fontSize: "0.9rem",
                   fontWeight: "600",
                   cursor: "pointer",
-                  transition: "all 0.2s"
+                  transition: "all 0.2s",
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.05)"
                 }}
               >
                 <Download size={16} /> Xuất báo cáo CSV
@@ -2834,211 +3652,331 @@ const PartnerDashboard = () => {
             {/* Filter Selector Row */}
             <div style={{
               display: "flex",
-              gap: "1rem",
+              gap: "1.5rem",
               alignItems: "center",
               backgroundColor: "#ffffff",
               borderRadius: "16px",
-              padding: "1rem 1.5rem",
-              border: "1px solid #f1f5f9"
+              padding: "1.25rem 1.5rem",
+              border: "1px solid #f1f5f9",
+              flexWrap: "wrap"
             }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600" }}>Khoảng thời gian</span>
-                <select style={{
-                  padding: "0.4rem 0.8rem",
-                  borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "#ffffff",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  color: "#1e293b"
-                }}>
-                  <option>6 tháng gần nhất</option>
-                  <option>Tháng này</option>
-                  <option>Quý này</option>
-                  <option>Năm nay</option>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", minWidth: "180px" }}>
+                <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600" }}>Khoảng thời gian báo cáo</span>
+                <select 
+                  value={selectedTaxPeriod}
+                  onChange={(e) => setSelectedTaxPeriod(e.target.value)}
+                  style={{
+                    padding: "0.5rem 0.8rem",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#ffffff",
+                    fontSize: "0.88rem",
+                    fontWeight: "600",
+                    color: "#1e293b"
+                  }}
+                >
+                  <option value="6_months">6 tháng gần nhất</option>
+                  <option value="this_month">Tháng này</option>
+                  <option value="this_quarter">Quý này</option>
+                  <option value="this_year">Năm nay</option>
                 </select>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600" }}>Loại báo cáo</span>
-                <select style={{
-                  padding: "0.4rem 0.8rem",
-                  borderRadius: "8px",
-                  border: "1px solid #e2e8f0",
-                  backgroundColor: "#ffffff",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                  color: "#1e293b"
-                }}>
-                  <option>Doanh số tổng hợp</option>
-                  <option>Phân tích theo danh mục</option>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem", minWidth: "220px" }}>
+                <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "600" }}>Hình thức & Thuế suất áp dụng</span>
+                <select 
+                  value={selectedTaxRateType}
+                  onChange={(e) => setSelectedTaxRateType(e.target.value)}
+                  style={{
+                    padding: "0.5rem 0.8rem",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0",
+                    backgroundColor: "#ffffff",
+                    fontSize: "0.88rem",
+                    fontWeight: "600",
+                    color: "#1e293b"
+                  }}
+                >
+                  <option value="household_service">Hộ kinh doanh dịch vụ (Thuế TNCN & GTGT: 4.5%)</option>
+                  <option value="household_shop">Hộ kinh doanh thương mại (Thuế TNCN & GTGT: 1.5%)</option>
+                  <option value="corporate">Doanh nghiệp đóng thuế khấu trừ (VAT: 10%)</option>
                 </select>
               </div>
             </div>
 
-            {/* Chart container */}
-            <div style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "20px",
-              padding: "2rem",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
-              border: "1px solid #f1f5f9"
-            }}>
-              <h3 style={{ fontSize: "1.10rem", fontWeight: "700", marginBottom: "2.5rem", color: "#1e293b" }}>Tăng trưởng doanh thu 2026</h3>
+            {/* Calculations & Metrics */}
+            {(() => {
+              const txns = getTransactions();
+              const filteredTxns = txns; 
+              
+              const totalRevenueAmt = filteredTxns.reduce((sum, t) => sum + t.amount, 0);
+              const txnCount = filteredTxns.length;
+              const avgTxnAmt = txnCount > 0 ? Math.round(totalRevenueAmt / txnCount) : 0;
 
-              {/* Sleek Custom Animated SVG/CSS Bar Chart */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-                {/* Visual Chart Bars */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: "240px", paddingBottom: "1rem", borderBottom: "2px solid #f1f5f9", position: "relative" }}>
-                  {/* Grid Lines */}
-                  <div style={{ position: "absolute", left: 0, right: 0, top: "25%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
-                  <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
-                  <div style={{ position: "absolute", left: 0, right: 0, top: "75%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
+              const taxInfo = getTaxDetails(totalRevenueAmt, selectedTaxRateType);
+              const taxRate = taxInfo.rate;
+              const totalTaxDueAmt = taxInfo.taxDue;
+              
+              const themeColor = activeCategory === "spa" ? "#7066e0" : activeCategory === "vet" ? "#4ecdc4" : "#f05a5b";
+              const themeBg = activeCategory === "spa" ? "#F4F3FF" : activeCategory === "vet" ? "#EBFBFA" : "#FFF0F0";
+              const themeBorder = activeCategory === "spa" ? "#ddd6fe" : activeCategory === "vet" ? "#b2ebe7" : "#ffe4e6";
+              
+              return (
+                <>
+                  {/* Summary Cards Row */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem" }}>
+                    <div style={{ padding: "1.5rem", backgroundColor: "#ffffff", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)" }}>
+                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "600" }}>Tổng doanh thu thực nhận</p>
+                      <p style={{ margin: "8px 0 0", fontSize: "1.85rem", fontWeight: "800", color: "#1e293b" }}>{totalRevenueAmt.toLocaleString("vi-VN")} ₫</p>
+                      <span style={{ fontSize: "0.78rem", color: "#10b981", fontWeight: "700" }}>↑ 12.4% so với kỳ trước</span>
+                    </div>
+                    <div style={{ padding: "1.5rem", backgroundColor: "#ffffff", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)" }}>
+                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "600" }}>Tổng số lượng giao dịch</p>
+                      <p style={{ margin: "8px 0 0", fontSize: "1.85rem", fontWeight: "800", color: "#1e293b" }}>{txnCount} giao dịch</p>
+                      <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: "600" }}>Từ khách hệ thống & khách ngoài</span>
+                    </div>
+                    <div style={{ padding: "1.5rem", backgroundColor: "#ffffff", borderRadius: "20px", border: "1px solid #f1f5f9", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)" }}>
+                      <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b", fontWeight: "600" }}>Bình quân mỗi giao dịch</p>
+                      <p style={{ margin: "8px 0 0", fontSize: "1.85rem", fontWeight: "800", color: "#1e293b" }}>{avgTxnAmt.toLocaleString("vi-VN")} ₫</p>
+                      <span style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: "600" }}>Hiệu suất doanh thu ổn định</span>
+                    </div>
+                  </div>
 
-                  {/* Bars */}
-                  {[
-                    { month: "Tháng 1", val: 85, display: "85M" },
-                    { month: "Tháng 2", val: 110, display: "110M" },
-                    { month: "Tháng 3", val: 95, display: "95M" },
-                    { month: "Tháng 4", val: 130, display: "130M" },
-                    { month: "Tháng 5", val: 142.5, display: "142.5M", primary: true },
-                  ].map((item, idx) => (
-                    <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "15%", zIndex: 2 }}>
-                      <div
+                  {/* TAX REPORT CARD (BÁO CÁO THUẾ CHUYÊN SÂU) */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.5fr 1fr",
+                    gap: "1.5rem",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "20px",
+                    padding: "2rem",
+                    border: `1px solid ${themeBorder}`,
+                    boxShadow: "0 10px 15px -3px rgba(0,0,0,0.02)"
+                  }}>
+                    <div>
+                      <h3 style={{ fontSize: "1.25rem", fontWeight: "800", color: "#1e293b", margin: "0 0 0.5rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <Wallet size={20} color={themeColor} /> Báo cáo & Nghĩa vụ Thuế nhà nước
+                      </h3>
+                      <p style={{ margin: 0, fontSize: "0.9rem", color: "#64748b", lineHeight: "1.6" }}>
+                        Theo quy định Pháp luật về thuế đối với hộ kinh doanh/doanh nghiệp hoạt động trên nền tảng thương mại dịch vụ HomePaws, đối tác có trách nhiệm tự kê khai và thực hiện nộp các khoản thuế môn bài, thuế GTGT, thuế TNCN theo tỷ lệ doanh thu phát sinh.
+                      </p>
+                      <p style={{ margin: "0.75rem 0 0 0", fontSize: "0.82rem", color: "#b45309", fontStyle: "italic", display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: "500" }}>
+                        <AlertTriangle size={14} style={{ flexShrink: 0 }} />
+                        * Nghĩa vụ thuế được ước tính dựa trên giả định doanh thu cả năm vượt mốc quy định (1 tỷ đồng/năm đối với Hộ kinh doanh).
+                      </p>
+                      
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1.5rem" }}>
+                        <div style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: "0.75rem" }}>
+                          <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Loại thuế áp dụng</span>
+                          <p style={{ margin: "2px 0 0", fontSize: "0.92rem", fontWeight: "bold", color: "#1e293b" }}>
+                            {selectedTaxRateType === "corporate" ? "Thuế VAT Doanh nghiệp (Khấu trừ)" : "Thuế TNCN & GTGT Hộ kinh doanh"}
+                          </p>
+                        </div>
+                        <div style={{ borderLeft: `3px solid ${themeColor}`, paddingLeft: "0.75rem" }}>
+                          <span style={{ fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Kỳ kê khai thuế</span>
+                          <p style={{ margin: "2px 0 0", fontSize: "0.92rem", fontWeight: "bold", color: "#1e293b" }}>Theo tháng / Quý phát sinh doanh thu</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      backgroundColor: themeBg,
+                      borderRadius: "16px",
+                      padding: "1.5rem",
+                      border: `1px solid ${themeBorder}`,
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      gap: "1rem"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div>
+                          <span style={{ fontSize: "0.8rem", color: "#475569", fontWeight: "600" }}>Thuế suất áp dụng:</span>
+                          <p style={{ margin: 0, fontSize: "1.1rem", fontWeight: "800", color: themeColor }}>{taxRate}%</p>
+                        </div>
+                        <div>
+                          <span style={{
+                            fontSize: "0.78rem",
+                            padding: "4px 12px",
+                            borderRadius: "9999px",
+                            fontWeight: "700",
+                            backgroundColor: taxInfo.isExempt ? "#e0f2fe" : (taxPaidStatus === "Paid" ? "#d1fae5" : taxPaidStatus === "Processing" ? "#fef3c7" : "#fee2e2"),
+                            color: taxInfo.isExempt ? "#0369a1" : (taxPaidStatus === "Paid" ? "#065f46" : taxPaidStatus === "Processing" ? "#92400e" : "#991b1b")
+                          }}>
+                            {taxInfo.isExempt ? "Miễn thuế" : (taxPaidStatus === "Paid" ? "Đã nộp thuế" : taxPaidStatus === "Processing" ? "Đang xử lý..." : "Chưa nộp thuế")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ borderTop: "1px dashed rgba(0,0,0,0.1)", paddingTop: "1rem" }}>
+                        <span style={{ fontSize: "0.8rem", color: "#475569", fontWeight: "600" }}>TỔNG THUẾ CẦN NỘP:</span>
+                        <p style={{ margin: "4px 0 0", fontSize: "1.6rem", fontWeight: "800", color: "#1e293b" }}>
+                          {totalTaxDueAmt.toLocaleString("vi-VN")} ₫
+                        </p>
+                        {taxInfo.isExempt && (
+                          <p style={{ margin: "4px 0 0 0", fontSize: "0.78rem", color: "#0369a1", fontWeight: "600", lineHeight: "1.3" }}>
+                            (Miễn thuế do DT lũy kế &le; 1 tỷ đ/năm)
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (taxPaidStatus === "Paid") {
+                            toast.success(taxInfo.isExempt ? "Khoản nộp thuế tự nguyện đã được thanh toán thành công!" : "Hồ sơ thuế kỳ này của bạn đã được thanh toán hoàn tất!");
+                            return;
+                          }
+                          setShowTaxPaymentModal(true);
+                        }}
+                        disabled={taxPaidStatus === "Processing"}
                         style={{
-                          height: `${(item.val / 150) * 100}%`,
                           width: "100%",
-                          backgroundColor: item.primary ? "#f05a5b" : "#e2e8f0",
-                          borderRadius: "8px 8px 0 0",
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "center",
-                          paddingTop: "6px",
-                          color: item.primary ? "white" : "#475569",
-                          fontSize: "0.75rem",
-                          fontWeight: "bold",
-                          transition: "height 1s ease",
+                          padding: "0.75rem",
+                          borderRadius: "10px",
+                          border: "none",
+                          backgroundColor: taxPaidStatus === "Paid" ? "#10b981" : themeColor,
+                          color: "white",
+                          fontWeight: "700",
+                          fontSize: "0.95rem",
                           cursor: "pointer",
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.02)"
+                          transition: "all 0.2s"
                         }}
                         className="hover-scale"
                       >
-                        {item.display}
-                      </div>
-                      <span style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "8px", fontWeight: "600" }}>{item.month}</span>
+                        {taxPaidStatus === "Paid" 
+                          ? "Đã hoàn thành nghĩa vụ thuế" 
+                          : taxInfo.isExempt 
+                            ? "Nộp thuế tạm tính (Tự nguyện)" 
+                            : "Nộp thuế điện tử trực tuyến"}
+                      </button>
                     </div>
-                  ))}
-                </div>
+                  </div>
 
-                {/* Summary Row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1rem", marginTop: "1rem", textAlign: "center" }}>
-                  <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
-                    <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Doanh thu quý gần nhất</p>
-                    <p style={{ margin: "4px 0 0", fontSize: "1.3rem", fontWeight: "bold", color: "#1e293b" }}>367.500.000 ₫</p>
-                  </div>
-                  <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
-                    <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Đơn hàng bán ra (Tháng 5)</p>
-                    <p style={{ margin: "4px 0 0", fontSize: "1.3rem", fontWeight: "bold", color: "#1e293b" }}>380 đơn</p>
-                  </div>
-                  <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "16px", border: "1px solid #f1f5f9" }}>
-                    <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Doanh thu trung bình tháng</p>
-                    <p style={{ margin: "4px 0 0", fontSize: "1.3rem", fontWeight: "bold", color: "#1e293b" }}>112.500.000 ₫</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  {/* Growth Chart */}
+                  <div style={{
+                    backgroundColor: "#ffffff",
+                    borderRadius: "20px",
+                    padding: "2rem",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03)",
+                    border: "1px solid #f1f5f9"
+                  }}>
+                    <h3 style={{ fontSize: "1.10rem", fontWeight: "700", marginBottom: "2.5rem", color: "#1e293b" }}>
+                      Tăng trưởng doanh thu 6 tháng gần nhất
+                    </h3>
 
-            {/* Detailed Transaction Report Table */}
-            <div style={{
-              backgroundColor: "#ffffff",
-              borderRadius: "20px",
-              padding: "1.5rem",
-              border: "1px solid #f1f5f9",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
-            }}>
-              <h3 style={{ fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", margin: "0 0 1rem" }}>Báo cáo chi tiết giao dịch doanh thu</h3>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-                  <thead>
-                    <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
-                      <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Mã đơn hàng</th>
-                      <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Ngày giao dịch</th>
-                      <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Khách hàng</th>
-                      <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Doanh thu thu về</th>
-                      <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Trạng thái thanh toán</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.length > 0 ? (
-                      orders.map((o, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f8fafc" }}>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "600", color: "#f05a5b" }}>
-                            #{o.orderID || o.id}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#64748b" }}>
-                            {o.orderDate || new Date(o.createdAt).toLocaleDateString("vi-VN")}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#1e293b" }}>
-                            {o.customerName || o.fullName || "Khách mua hàng"}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "600", color: "#1e293b" }}>
-                            {(o.totalAmount || o.totalPrice || 0).toLocaleString("vi-VN")} ₫
-                          </td>
-                          <td style={{ padding: "1rem" }}>
-                            <span style={{
-                              fontSize: "0.78rem",
-                              padding: "4px 10px",
-                              borderRadius: "9999px",
-                              fontWeight: "600",
-                              backgroundColor: "#d1fae5",
-                              color: "#065f46",
-                              display: "inline-block"
-                            }}>
-                              Đã nhận thanh toán
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      // Realistic fallback records
-                      [
-                        { id: "ORD-1001", date: "2026-05-25", customer: "Nguyễn Văn Hùng", total: 450000 },
-                        { id: "ORD-1002", date: "2026-05-26", customer: "Trần Thị Lan", total: 850000 },
-                        { id: "ORD-1003", date: "2026-05-27", customer: "Lê Minh Tuấn", total: 350000 }
-                      ].map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: "1px solid #f8fafc" }}>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "600", color: "#f05a5b" }}>
-                            #{item.id}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#64748b" }}>
-                            {item.date}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#1e293b" }}>
-                            {item.customer}
-                          </td>
-                          <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "600", color: "#1e293b" }}>
-                            {item.total.toLocaleString("vi-VN")} ₫
-                          </td>
-                          <td style={{ padding: "1rem" }}>
-                            <span style={{
-                              fontSize: "0.78rem",
-                              padding: "4px 10px",
-                              borderRadius: "9999px",
-                              fontWeight: "600",
-                              backgroundColor: "#d1fae5",
-                              color: "#065f46",
-                              display: "inline-block"
-                            }}>
-                              Đã nhận thanh toán
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: "240px", paddingBottom: "1rem", borderBottom: "2px solid #f1f5f9", position: "relative" }}>
+                        <div style={{ position: "absolute", left: 0, right: 0, top: "25%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
+                        <div style={{ position: "absolute", left: 0, right: 0, top: "50%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
+                        <div style={{ position: "absolute", left: 0, right: 0, top: "75%", borderBottom: "1px dashed #f1f5f9", zIndex: 1 }}></div>
+
+                        {[
+                          { month: "Tháng 12", val: activeCategory === "shop" ? 85 : activeCategory === "vet" ? 65 : 45, display: activeCategory === "shop" ? "85M" : activeCategory === "vet" ? "65M" : "45M" },
+                          { month: "Tháng 1", val: activeCategory === "shop" ? 110 : activeCategory === "vet" ? 90 : 55, display: activeCategory === "shop" ? "110M" : activeCategory === "vet" ? "90M" : "55M" },
+                          { month: "Tháng 2", val: activeCategory === "shop" ? 95 : activeCategory === "vet" ? 75 : 50, display: activeCategory === "shop" ? "95M" : activeCategory === "vet" ? "75M" : "50M" },
+                          { month: "Tháng 3", val: activeCategory === "shop" ? 130 : activeCategory === "vet" ? 115 : 70, display: activeCategory === "shop" ? "130M" : activeCategory === "vet" ? "115M" : "70M" },
+                          { month: "Tháng 4", val: activeCategory === "shop" ? 142.5 : activeCategory === "vet" ? 120 : 85, display: activeCategory === "shop" ? "142.5M" : activeCategory === "vet" ? "120M" : "85M" },
+                          { month: "Tháng 5", val: (totalRevenueAmt / 1000000).toFixed(1), display: `${(totalRevenueAmt / 1000000).toFixed(1)}M`, primary: true },
+                        ].map((item, idx) => (
+                          <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "12%", zIndex: 2 }}>
+                            <div
+                              style={{
+                                height: `${(Number(item.val) / 160) * 100}%`,
+                                width: "100%",
+                                backgroundColor: item.primary ? themeColor : "#e2e8f0",
+                                borderRadius: "8px 8px 0 0",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "center",
+                                paddingTop: "6px",
+                                color: item.primary ? "white" : "#475569",
+                                fontSize: "0.75rem",
+                                fontWeight: "bold",
+                                transition: "height 1s ease",
+                                cursor: "pointer",
+                                boxShadow: "0 4px 6px rgba(0,0,0,0.02)"
+                              }}
+                              className="hover-scale"
+                            >
+                              {item.display}
+                            </div>
+                            <span style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "8px", fontWeight: "600" }}>{item.month}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Detailed Transaction Report Table */}
+                  <div style={{
+                    backgroundColor: "#ffffff",
+                    borderRadius: "20px",
+                    padding: "1.5rem",
+                    border: "1px solid #f1f5f9",
+                    boxShadow: "0 4px 6px -1px rgba(0,0,0,0.02)"
+                  }}>
+                    <h3 style={{ fontSize: "1.05rem", fontWeight: "700", color: "#1e293b", margin: "0 0 1rem" }}>
+                      Báo cáo chi tiết giao dịch doanh thu & thuế
+                    </h3>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Mã GD</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Ngày giao dịch</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Khách hàng</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Nội dung dịch vụ/sản phẩm</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Doanh thu</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Thuế cần nộp ({taxRate}%)</th>
+                            <th style={{ padding: "1rem", fontSize: "0.85rem", fontWeight: "600", color: "#64748b" }}>Trạng thái</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredTxns.map((t, idx) => {
+                            const taxAmt = taxInfo.isExempt ? 0 : Math.round(t.amount * (taxRate / 100));
+                            return (
+                              <tr key={idx} style={{ borderBottom: "1px solid #f8fafc" }}>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "600", color: themeColor }}>
+                                  #{t.id}
+                                </td>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#64748b" }}>
+                                  {t.date}
+                                </td>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#1e293b", fontWeight: "500" }}>
+                                  {t.customer}
+                                </td>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", color: "#475569" }}>
+                                  {t.description}
+                                </td>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "700", color: "#1e293b" }}>
+                                  {t.amount.toLocaleString("vi-VN")} ₫
+                                </td>
+                                <td style={{ padding: "1rem", fontSize: "0.88rem", fontWeight: "700", color: "#b45309" }}>
+                                  {taxAmt.toLocaleString("vi-VN")} ₫
+                                </td>
+                                <td style={{ padding: "1rem" }}>
+                                  <span style={{
+                                    fontSize: "0.78rem",
+                                    padding: "4px 10px",
+                                    borderRadius: "9999px",
+                                    fontWeight: "600",
+                                    backgroundColor: "#d1fae5",
+                                    color: "#065f46",
+                                    display: "inline-block"
+                                  }}>
+                                    Đã thanh toán
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         )}
 
@@ -4006,107 +4944,298 @@ const PartnerDashboard = () => {
           </div>
         )}
 
-        {/* SPA WORKSPACE - WELLNESS & PET PROFILE TAB */}
         {activeCategory === "spa" && currentTab === "wellness" && (
           <div>
-            <div style={{ marginBottom: "2rem" }}>
-              <h2 style={{ fontSize: "1.75rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
-                Hồ sơ Chăm sóc & Tạo kiểu Pet cưng
-              </h2>
-              <p style={{ color: "#64748b", marginTop: "0.25rem" }}>
-                Ghi chú các yêu cầu đặc biệt của chủ nuôi về kiểu lông, da nhạy cảm và phong cách tạo kiểu của pet.
-              </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "2rem" }}>
+              <div>
+                <h2 style={{ fontSize: "1.75rem", fontWeight: "800", color: "#1e293b", margin: 0 }}>
+                  Hồ sơ Chăm sóc & Tạo kiểu Pet cưng
+                </h2>
+                <p style={{ color: "#64748b", marginTop: "0.25rem" }}>
+                  Ghi chú các yêu cầu đặc biệt của chủ nuôi về kiểu lông, da nhạy cảm và phong cách tạo kiểu của pet.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setHrForm({
+                    petID: "",
+                    weight: "",
+                    conditionDetails: "",
+                    vaccinationStatus: "",
+                    petName: "",
+                    breed: "",
+                    ownerName: "",
+                    spaStyle: "",
+                    spaSpecialRequests: "",
+                    spaEvaluation: ""
+                  });
+                  setSelectedRegion("");
+                  setSelectedShelterId("");
+                  setShowAddHRModal(true);
+                }}
+                className="btn btn-primary"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  borderRadius: "10px",
+                  backgroundColor: "#7066e0",
+                  border: "none",
+                  boxShadow: "0 4px 6px rgba(112, 102, 224, 0.2)",
+                }}
+              >
+                <Plus size={18} /> Thêm hồ sơ mới
+              </button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.25fr", gap: "2rem" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: "2rem" }}>
               {/* Patient List */}
-              <div className="card" style={{ padding: "1.5rem" }}>
-                <h3 style={{ fontSize: "1.1rem", marginBottom: "1rem", color: "#1e293b" }}>Danh sách pet làm đẹp</h3>
-                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                  {patients.slice(0, 2).map((pat) => (
-                    <div
-                      key={pat.id}
-                      onClick={() => setSelectedPatient(pat)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "1rem",
-                        padding: "1rem",
-                        borderRadius: "12px",
-                        border: selectedPatient?.id === pat.id ? "2px solid #9b93ff" : "1px solid #e2e8f0",
-                        cursor: "pointer",
-                        backgroundColor: selectedPatient?.id === pat.id ? "#F4F3FF" : "#ffffff",
-                        transition: "all 0.2s",
-                      }}
-                      className="hover-scale"
-                    >
-                      <img
-                        src={pat.image}
-                        alt={pat.name}
-                        style={{ width: "50px", height: "50px", objectFit: "cover", borderRadius: "50%" }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: "bold", fontSize: "0.95rem" }}>{pat.name}</div>
-                        <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                          {pat.breed} • {pat.age}
-                        </div>
-                      </div>
-                      <ChevronRight size={18} color="#94a3b8" />
-                    </div>
-                  ))}
+              <div className="card" style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem", borderRadius: "16px", background: "#fff", border: "1px solid #e2e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ fontSize: "1.1rem", margin: 0, color: "#1e293b", fontWeight: "bold" }}>Danh sách pet làm đẹp</h3>
+                  <span style={{ fontSize: "0.8rem", backgroundColor: "#F4F3FF", color: "#7066e0", padding: "4px 10px", borderRadius: "9999px", fontWeight: "600" }}>{patients.length} con</span>
                 </div>
+                <div style={{ position: "relative" }}>
+                  <Search size={16} color="#94a3b8" style={{ position: "absolute", top: "12px", left: "12px" }} />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm tên pet..."
+                    value={spaSearch}
+                    onChange={(e) => setSpaSearch(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px 10px 36px",
+                      borderRadius: "8px",
+                      border: "1px solid #cbd5e1",
+                      outline: "none",
+                      fontSize: "0.95rem",
+                      boxSizing: "border-box"
+                    }}
+                  />
+                </div>
+                {isLoadingPatients ? (
+                  <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
+                    <div style={{ border: "3px solid #f3f3f3", borderTop: "3px solid #7066e0", borderRadius: "50%", width: "30px", height: "30px", animation: "spin 1s linear infinite", margin: "0 auto 0.5rem" }}></div>
+                    Đang tải...
+                  </div>
+                ) : (
+                  <div className="hide-scrollbar" style={{ display: "flex", flexDirection: "column", gap: "0.75rem", overflowY: "auto", overflowX: "hidden", flex: 1, maxHeight: "500px" }}>
+                    {patients
+                      .filter(p => !spaSearch || (p.name || "").toLowerCase().includes(spaSearch.toLowerCase()))
+                      .map((pat) => (
+                        <div
+                          key={pat.id}
+                          onClick={() => setSelectedPatient(pat)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.75rem",
+                            padding: "0.75rem",
+                            borderRadius: "10px",
+                            border: selectedPatient?.id === pat.id ? "2px solid #7066e0" : "1px solid #e2e8f0",
+                            cursor: "pointer",
+                            backgroundColor: selectedPatient?.id === pat.id ? "#F4F3FF" : "#ffffff",
+                            transition: "all 0.2s",
+                          }}
+                          className="hover-scale"
+                        >
+                          <img
+                            src={pat.image || "https://via.placeholder.com/40"}
+                            alt={pat.name}
+                            style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "50%", border: "2px solid #e2e8f0", flexShrink: 0 }}
+                            onError={(e) => { e.target.src = "https://via.placeholder.com/40"; }}
+                          />
+                          <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                            <div style={{ fontWeight: "bold", fontSize: "0.9rem", color: "#1e293b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pat.name}</div>
+                            <div style={{ fontSize: "0.8rem", color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {pat.breed} • {pat.healthRecords?.length || 0} lần làm đẹp
+                            </div>
+                          </div>
+                          <ChevronRight size={16} color={selectedPatient?.id === pat.id ? "#7066e0" : "#94a3b8"} style={{ flexShrink: 0 }} />
+                        </div>
+                      ))}
+                    {patients.filter(p => !spaSearch || (p.name || "").toLowerCase().includes(spaSearch.toLowerCase())).length === 0 && (
+                      <div style={{ textAlign: "center", padding: "2rem", color: "#94a3b8" }}>
+                        Không tìm thấy thú cưng.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Pet Styling Care Card */}
-              <div className="card" style={{ minHeight: "350px", display: "flex", flexDirection: "column" }}>
+              <div className="card" style={{ minHeight: "500px", display: "flex", flexDirection: "column", padding: "1.5rem" }}>
                 {selectedPatient ? (
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "1rem", borderBottom: "1px solid #f1f5f9", paddingBottom: "1.25rem", marginBottom: "1.25rem" }}>
-                      <img
-                        src={selectedPatient.image}
-                        alt={selectedPatient.name}
-                        style={{ width: "64px", height: "64px", objectFit: "cover", borderRadius: "50%" }}
-                      />
-                      <div>
-                        <h3 style={{ fontSize: "1.25rem", margin: 0 }}>{selectedPatient.name}</h3>
-                        <p style={{ margin: 0, fontSize: "0.85rem", color: "#64748b" }}>Chủ: {selectedPatient.owner}</p>
-                      </div>
-                    </div>
+                  (() => {
+                    const latestRecord = selectedPatient.healthRecords?.[0];
+                    const spaData = parseSpaDetails(latestRecord?.conditionDetails || "");
+                    const skinCoat = latestRecord?.vaccinationStatus || "Chưa có thông tin";
+                    const weightStr = latestRecord?.weight ? `${latestRecord.weight} kg` : "Chưa có";
+                    
+                    return (
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #f1f5f9", paddingBottom: "1.25rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "1.25rem" }}>
+                            <img
+                              src={selectedPatient.image}
+                              alt={selectedPatient.name}
+                              style={{ width: "70px", height: "70px", objectFit: "cover", borderRadius: "50%", border: "3px solid #f8fafc" }}
+                              onError={(e) => { e.target.src = "https://via.placeholder.com/70"; }}
+                            />
+                            <div>
+                              <h3 style={{ fontSize: "1.5rem", margin: 0, fontWeight: "800", color: "#1e293b" }}>{selectedPatient.name}</h3>
+                              <p style={{ margin: "4px 0 0", fontSize: "0.95rem", color: "#64748b" }}>
+                                <span style={{ fontWeight: "600", color: "#475569" }}>Chủ nuôi:</span> {selectedPatient.owner || selectedPatient.shelterName}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setHrForm({
+                                petID: selectedPatient.id.toString(),
+                                weight: latestRecord?.weight ? latestRecord.weight.toString() : "",
+                                conditionDetails: "",
+                                vaccinationStatus: latestRecord?.vaccinationStatus || "",
+                                petName: "",
+                                breed: "",
+                                ownerName: "",
+                                spaStyle: "",
+                                spaSpecialRequests: "",
+                                spaEvaluation: ""
+                              });
+                              setShowAddHRModal(true);
+                            }}
+                            style={{
+                              padding: "8px 16px",
+                              backgroundColor: "#7066e0",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "8px",
+                              fontWeight: "600",
+                              fontSize: "0.9rem",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.4rem"
+                            }}
+                          >
+                            <Plus size={16} /> Thêm hồ sơ chăm sóc
+                          </button>
+                        </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.25rem", marginBottom: "1.5rem" }}>
-                      <div style={{ padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "10px" }}>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b" }}>Kiểu lông yêu thích:</p>
-                        <p style={{ margin: "2px 0 0", fontWeight: "bold" }}>
-                          {selectedPatient.name === "Luna" ? "Cắt Poodle Teddy tròn" : "Tỉa gọn gàng tự nhiên"}
-                        </p>
-                      </div>
-                      <div style={{ padding: "0.75rem", backgroundColor: "#f8fafc", borderRadius: "10px" }}>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b" }}>Loại da & Lông:</p>
-                        <p style={{ margin: "2px 0 0", fontWeight: "bold" }}>
-                          {selectedPatient.name === "Luna" ? "Tơ xoăn, dễ rối" : "Dày, rụng lông vừa"}
-                        </p>
-                      </div>
-                    </div>
+                        {/* Summary Metrics */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem" }}>
+                          <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "12px" }}>
+                            <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Giống loài</p>
+                            <p style={{ margin: "4px 0 0", fontWeight: "bold", color: "#1e293b", fontSize: "1.1rem" }}>{selectedPatient.breed}</p>
+                          </div>
+                          <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "12px" }}>
+                            <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Phân loại</p>
+                            <p style={{ margin: "4px 0 0", fontWeight: "bold", color: "#1e293b", fontSize: "1.1rem" }}>{selectedPatient.categoryName}</p>
+                          </div>
+                          <div style={{ padding: "1rem", backgroundColor: "#f8fafc", borderRadius: "12px" }}>
+                            <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b", fontWeight: "600" }}>Cân nặng gần nhất</p>
+                            <p style={{ margin: "4px 0 0", fontWeight: "bold", color: "#1e293b", fontSize: "1.1rem" }}>{weightStr}</p>
+                          </div>
+                        </div>
 
-                    <div style={{ marginBottom: "1.5rem" }}>
-                      <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "#64748b", fontWeight: "bold", textTransform: "uppercase" }}>Yêu cầu dịch vụ đặc biệt</p>
-                      <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.88rem", color: "#334155", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-                        <li>Cạo vắt tuyến hôi nhẹ nhàng, pet nhát.</li>
-                        <li>Sử dụng dầu gội hương thảo dược dưỡng lông bóng mượt.</li>
-                        <li>Cắt móng dũa tròn, không cắt quá sát tủy móng.</li>
-                      </ul>
-                    </div>
+                        {/* Styling Preferences */}
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+                          <div style={{ padding: "1rem", backgroundColor: "#f5f3ff", borderRadius: "12px", border: "1px solid #ddd6fe" }}>
+                            <p style={{ margin: 0, fontSize: "0.8rem", color: "#7c3aed", fontWeight: "600" }}>💇‍♂️ Kiểu lông yêu thích:</p>
+                            <p style={{ margin: "4px 0 0", fontWeight: "bold", color: "#1e293b", fontSize: "1.05rem" }}>
+                              {latestRecord ? spaData.style : "Chưa có thông tin"}
+                            </p>
+                          </div>
+                          <div style={{ padding: "1rem", backgroundColor: "#f5f3ff", borderRadius: "12px", border: "1px solid #ddd6fe" }}>
+                            <p style={{ margin: 0, fontSize: "0.8rem", color: "#7c3aed", fontWeight: "600" }}>🧼 Loại da & Lông:</p>
+                            <p style={{ margin: "4px 0 0", fontWeight: "bold", color: "#1e293b", fontSize: "1.05rem" }}>
+                              {skinCoat}
+                            </p>
+                          </div>
+                        </div>
 
-                    <div>
-                      <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "#64748b", fontWeight: "bold", textTransform: "uppercase" }}>Đánh giá thể trạng sau tắm</p>
-                      <div style={{ padding: "1rem", backgroundColor: "#fdf8f6", borderRadius: "10px", fontSize: "0.9rem", color: "#b45309", borderLeft: "4px solid #9b93ff" }}>
-                        Tai có hiện tượng tích tụ sáp màu nâu nhẹ, đã vệ sinh sạch sẽ bằng nước rửa chuyên dụng. Cần nhắc chủ nuôi nhỏ tai.
+                        {/* Special Requests */}
+                        <div>
+                          <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "#64748b", fontWeight: "bold", textTransform: "uppercase" }}>Yêu cầu dịch vụ đặc biệt</p>
+                          {latestRecord ? (
+                            <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "0.9rem", color: "#334155", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+                              {spaData.specialRequests.split("\n").map((req, index) => (
+                                <li key={index}>{req}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p style={{ margin: 0, fontSize: "0.9rem", color: "#94a3b8", fontStyle: "italic" }}>Chưa có yêu cầu đặc biệt</p>
+                          )}
+                        </div>
+
+                        {/* Physical Evaluation */}
+                        <div>
+                          <p style={{ margin: "0 0 0.5rem", fontSize: "0.8rem", color: "#64748b", fontWeight: "bold", textTransform: "uppercase" }}>Đánh giá thể trạng sau tắm</p>
+                          <div style={{ padding: "1rem", backgroundColor: "#fdf8f6", borderRadius: "10px", fontSize: "0.9rem", color: "#b45309", borderLeft: "4px solid #7066e0" }}>
+                            {latestRecord ? spaData.evaluation : "Chưa có đánh giá thể trạng"}
+                          </div>
+                        </div>
+
+                        {/* Care History */}
+                        <div style={{ marginTop: "1rem", borderTop: "1px solid #f1f5f9", paddingTop: "1.5rem" }}>
+                          <h4 style={{ margin: "0 0 1rem", fontSize: "1.1rem", color: "#1e293b", fontWeight: "bold", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <Clipboard size={18} color="#7066e0" /> Lịch sử chăm sóc & tạo kiểu ({selectedPatient.healthRecords?.length || 0})
+                          </h4>
+                          {selectedPatient.healthRecords?.length > 0 ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "300px", overflowY: "auto" }}>
+                              {selectedPatient.healthRecords.map((hr) => {
+                                const recordSpaData = parseSpaDetails(hr.conditionDetails);
+                                return (
+                                  <div key={hr.recordID} style={{ padding: "1rem", backgroundColor: "#fbfbfe", borderRadius: "12px", border: "1px solid #e0e0f5" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                                      <span style={{ fontWeight: "700", fontSize: "0.9rem", color: "#7066e0" }}>Hồ sơ chăm sóc #{hr.recordID}</span>
+                                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                        <span style={{ fontSize: "0.8rem", color: "#64748b" }}>{new Date(hr.createdAt).toLocaleDateString("vi-VN")}</span>
+                                        <button
+                                          onClick={() => handleEditHealthRecord(hr)}
+                                          style={{ border: "none", backgroundColor: "transparent", color: "#64748b", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
+                                          title="Sửa hồ sơ"
+                                        >
+                                          <Edit size={14} />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeleteHealthRecord(hr.recordID)}
+                                          style={{ border: "none", backgroundColor: "transparent", color: "#ef4444", cursor: "pointer", padding: "2px", display: "flex", alignItems: "center" }}
+                                          title="Xóa hồ sơ"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "1rem", marginBottom: "0.5rem", flexWrap: "wrap", fontSize: "0.85rem", color: "#475569" }}>
+                                      {hr.weight && <span>⚖️ Cân nặng: <strong>{hr.weight} kg</strong></span>}
+                                      {hr.vaccinationStatus && <span>🧼 Da & lông: <strong>{hr.vaccinationStatus}</strong></span>}
+                                      <span>💇‍♂️ Kiểu lông: <strong>{recordSpaData.style}</strong></span>
+                                    </div>
+                                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.88rem", color: "#334155", lineHeight: "1.4" }}>
+                                      <strong>Yêu cầu:</strong> {recordSpaData.specialRequests}
+                                    </p>
+                                    <p style={{ margin: "0.5rem 0 0", fontSize: "0.88rem", color: "#b45309", backgroundColor: "#fffbeb", padding: "6px 10px", borderRadius: "6px" }}>
+                                      <strong>Đánh giá sau tắm:</strong> {recordSpaData.evaluation}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ padding: "2rem", backgroundColor: "#f8fafc", borderRadius: "12px", textAlign: "center", color: "#94a3b8" }}>
+                              Chưa có hồ sơ chăm sóc nào cho bé này.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()
                 ) : (
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
-                    <Sparkles size={48} style={{ marginBottom: "1rem" }} />
+                    <Sparkles size={48} style={{ marginBottom: "1rem", color: "#7066e0" }} />
                     <p style={{ margin: 0 }}>Chọn một bé pet làm đẹp để xem ghi chú và phong cách tạo kiểu chi tiết.</p>
                   </div>
                 )}
@@ -4502,21 +5631,32 @@ const PartnerDashboard = () => {
                 return;
               }
               setIsSavingHR(true);
-              const loadingToast = toast.loading("Đang lưu bệnh án...");
+              const isSpa = activeCategory === "spa";
+              const recordTypeName = isSpa ? "hồ sơ chăm sóc" : "bệnh án";
+              const loadingToast = toast.loading(`Đang lưu ${recordTypeName}...`);
               try {
+                let finalConditionDetails = hrForm.conditionDetails || "";
+                if (isSpa) {
+                  finalConditionDetails = serializeSpaDetails(
+                    hrForm.spaStyle,
+                    hrForm.spaSpecialRequests,
+                    hrForm.spaEvaluation
+                  );
+                }
+
                 let result;
                 if (editingHealthRecord) {
                   result = await updatePartnerHealthRecord(editingHealthRecord.recordID, {
                     petID: Number(hrForm.petID),
                     weight: hrForm.weight ? Number(hrForm.weight) : null,
-                    conditionDetails: hrForm.conditionDetails || "",
+                    conditionDetails: finalConditionDetails,
                     vaccinationStatus: hrForm.vaccinationStatus || "N/A"
                   });
                 } else {
                   result = await createPartnerHealthRecord({
                     petID: hrForm.petID === "external" ? 0 : Number(hrForm.petID),
                     weight: hrForm.weight ? Number(hrForm.weight) : null,
-                    conditionDetails: hrForm.conditionDetails || "",
+                    conditionDetails: finalConditionDetails,
                     vaccinationStatus: hrForm.vaccinationStatus || "N/A",
                     petName: hrForm.petID === "external" ? hrForm.petName : null,
                     breed: hrForm.petID === "external" ? hrForm.breed : null,
@@ -4525,11 +5665,11 @@ const PartnerDashboard = () => {
                 }
 
                 if (result.success) {
-                  toast.success(editingHealthRecord ? "Cập nhật bệnh án thành công!" : "Tạo bệnh án thành công!", { id: loadingToast });
+                  toast.success(editingHealthRecord ? `Cập nhật ${recordTypeName} thành công!` : `Tạo ${recordTypeName} thành công!`, { id: loadingToast });
                   if (completingAppointmentId) {
                     const app = appointments.find(a => a.id === completingAppointmentId);
                     if (app) {
-                      const newDesc = `Pet: ${app.petName} | Owner: ${app.ownerName} | Notes: ${app.notes || ""} | Status: completed`;
+                      const newDesc = `Pet: ${app.petName} | Owner: ${app.ownerName} | Notes: ${app.notes || ""} | Status: completed | Category: ${app.category || activeCategory}`;
                       const dateObj = new Date(app.date + "T" + convertTimeTo24h(app.time) + ":00");
                       await updatePartnerEvent(app.id, {
                         eventName: app.petName,
@@ -4542,19 +5682,30 @@ const PartnerDashboard = () => {
                     }
                     setCompletingAppointmentId(null);
                     fetchAppointments();
-                    toast.success(activeCategory === "spa" ? "Đã hoàn thành dịch vụ spa và lưu hồ sơ chăm sóc!" : "Đã hoàn thành lịch hẹn khám!");
+                    toast.success(isSpa ? "Đã hoàn thành dịch vụ spa và lưu hồ sơ chăm sóc!" : "Đã hoàn thành lịch hẹn khám!");
                   }
                   setShowAddHRModal(false);
                   setEditingHealthRecord(null);
-                  setHrForm({ petID: "", weight: "", conditionDetails: "", vaccinationStatus: "N/A", petName: "", breed: "", ownerName: "" });
+                  setHrForm({
+                    petID: "",
+                    weight: "",
+                    conditionDetails: "",
+                    vaccinationStatus: "N/A",
+                    petName: "",
+                    breed: "",
+                    ownerName: "",
+                    spaStyle: "",
+                    spaSpecialRequests: "",
+                    spaEvaluation: ""
+                  });
                   // Refresh patient data
                   setDbPatientsLoaded(false);
                 } else {
-                  toast.error(result.error || "Không thể lưu bệnh án", { id: loadingToast });
+                  toast.error(result.error || `Không thể lưu ${recordTypeName}`, { id: loadingToast });
                 }
               } catch (err) {
                 console.error(err);
-                toast.error("Có lỗi xảy ra khi lưu bệnh án.", { id: loadingToast });
+                toast.error(`Có lỗi xảy ra khi lưu ${recordTypeName}.`, { id: loadingToast });
               } finally {
                 setIsSavingHR(false);
               }
@@ -4708,44 +5859,104 @@ const PartnerDashboard = () => {
                 </div>
               )}
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Cân nặng (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={hrForm.weight}
-                    onChange={(e) => setHrForm({ ...hrForm, weight: e.target.value })}
-                    placeholder="VD: 5.5"
-                    style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                  <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>
-                    {activeCategory === "spa" ? "Dịch vụ bổ sung / Ghi chú lông da" : "Tình trạng tiêm chủng"}
-                  </label>
-                  <input
-                    type="text"
-                    value={hrForm.vaccinationStatus}
-                    onChange={(e) => setHrForm({ ...hrForm, vaccinationStatus: e.target.value })}
-                    placeholder="VD: Đã tiêm dại"
-                    style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
-                  />
-                </div>
-              </div>
+              {activeCategory === "spa" ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Cân nặng (kg)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={hrForm.weight}
+                        onChange={(e) => setHrForm({ ...hrForm, weight: e.target.value })}
+                        placeholder="VD: 5.5"
+                        style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Loại da & Lông *</label>
+                      <input
+                        type="text"
+                        value={hrForm.vaccinationStatus}
+                        onChange={(e) => setHrForm({ ...hrForm, vaccinationStatus: e.target.value })}
+                        placeholder="VD: Da nhạy cảm, dễ rối"
+                        style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                        required
+                      />
+                    </div>
+                  </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
-                <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>
-                {activeCategory === "spa" ? "Ghi chú dịch vụ & yêu cầu của khách hàng *" : "Chi tiết tình trạng / Ghi chú bác sĩ *"}
-              </label>
-                <textarea
-                  value={hrForm.conditionDetails}
-                  onChange={(e) => setHrForm({ ...hrForm, conditionDetails: e.target.value })}
-                  placeholder={activeCategory === "spa" ? "Nhập ghi chú dịch vụ, yêu cầu đặc biệt, kiểu lông..." : "Nhập chi tiết chẩn đoán, đơn thuốc, ghi chú..."}
-                  style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", minHeight: "100px", fontFamily: "inherit", fontSize: "0.95rem" }}
-                  required
-                />
-              </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Kiểu lông yêu thích / Phong cách tạo kiểu *</label>
+                    <input
+                      type="text"
+                      value={hrForm.spaStyle}
+                      onChange={(e) => setHrForm({ ...hrForm, spaStyle: e.target.value })}
+                      placeholder="VD: Cắt Poodle Teddy tròn, tỉa gọn tự nhiên"
+                      style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Yêu cầu dịch vụ đặc biệt *</label>
+                    <textarea
+                      value={hrForm.spaSpecialRequests}
+                      onChange={(e) => setHrForm({ ...hrForm, spaSpecialRequests: e.target.value })}
+                      placeholder="VD: Cạo vắt tuyến hôi nhẹ nhàng, cắt móng không cắt sát tủy móng..."
+                      style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", minHeight: "80px", fontFamily: "inherit", fontSize: "0.95rem" }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Đánh giá thể trạng sau tắm / Ghi chú khác</label>
+                    <textarea
+                      value={hrForm.spaEvaluation}
+                      onChange={(e) => setHrForm({ ...hrForm, spaEvaluation: e.target.value })}
+                      placeholder="VD: Tai sáp màu nâu nhẹ đã vệ sinh sạch, nhắc chủ nhỏ tai..."
+                      style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", minHeight: "80px", fontFamily: "inherit", fontSize: "0.95rem" }}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Cân nặng (kg)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={hrForm.weight}
+                        onChange={(e) => setHrForm({ ...hrForm, weight: e.target.value })}
+                        placeholder="VD: 5.5"
+                        style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                      <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Tình trạng tiêm chủng</label>
+                      <input
+                        type="text"
+                        value={hrForm.vaccinationStatus}
+                        onChange={(e) => setHrForm({ ...hrForm, vaccinationStatus: e.target.value })}
+                        placeholder="VD: Đã tiêm dại"
+                        style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+                    <label style={{ fontSize: "0.85rem", fontWeight: "bold" }}>Chi tiết tình trạng / Ghi chú bác sĩ *</label>
+                    <textarea
+                      value={hrForm.conditionDetails}
+                      onChange={(e) => setHrForm({ ...hrForm, conditionDetails: e.target.value })}
+                      placeholder="Nhập chi tiết chẩn đoán, đơn thuốc, ghi chú..."
+                      style={{ padding: "0.6rem 0.8rem", borderRadius: "8px", border: "1px solid #cbd5e1", minHeight: "100px", fontFamily: "inherit", fontSize: "0.95rem" }}
+                      required
+                    />
+                  </div>
+                </>
+              )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
                 <button
@@ -4753,7 +5964,18 @@ const PartnerDashboard = () => {
                   onClick={() => {
                     setShowAddHRModal(false);
                     setEditingHealthRecord(null);
-                    setHrForm({ petID: "", weight: "", conditionDetails: "", vaccinationStatus: "N/A" });
+                    setHrForm({
+                      petID: "",
+                      weight: "",
+                      conditionDetails: "",
+                      vaccinationStatus: "N/A",
+                      petName: "",
+                      breed: "",
+                      ownerName: "",
+                      spaStyle: "",
+                      spaSpecialRequests: "",
+                      spaEvaluation: ""
+                    });
                     setCompletingAppointmentId(null);
                   }}
                   className="btn btn-outline"
@@ -5037,6 +6259,686 @@ const PartnerDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SIMULATED TAX PAYMENT MODAL */}
+      {showTaxPaymentModal && (() => {
+        const txns = getTransactions();
+        const totalRevenueAmt = txns.reduce((sum, t) => sum + t.amount, 0);
+        const taxInfo = getTaxDetails(totalRevenueAmt, selectedTaxRateType);
+        const taxRate = taxInfo.rate;
+        const totalTaxDueAmt = taxInfo.isExempt ? taxInfo.estimatedTax : taxInfo.taxDue;
+        
+        const themeColor = activeCategory === "spa" ? "#7066e0" : activeCategory === "vet" ? "#4ecdc4" : "#f05a5b";
+        const themeBg = activeCategory === "spa" ? "#F4F3FF" : activeCategory === "vet" ? "#EBFBFA" : "#FFF0F0";
+        const paymentCode = `TAX-${activeCategory.toUpperCase()}-${selectedTaxPeriod.toUpperCase()}-${user?.userId?.substring(0, 4) || "PART"}`;
+
+        const handleConfirmPayment = () => {
+          setIsPayingTax(true);
+          setTaxPaidStatus("Processing");
+          const loadingToast = toast.loading("Đang xác thực giao dịch chuyển khoản thuế...");
+          
+          setTimeout(() => {
+            setIsPayingTax(false);
+            setTaxPaidStatus("Paid");
+            setShowTaxPaymentModal(false);
+            toast.success("Xác nhận đã nộp thuế thành công! Hệ thống đã ghi nhận trạng thái nộp thuế của bạn.", {
+              id: loadingToast,
+              duration: 5000
+            });
+          }, 2500);
+        };
+
+        return (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              backgroundColor: "rgba(15, 23, 42, 0.6)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 200,
+              padding: "1rem",
+            }}
+          >
+            <style>{`
+              @keyframes scaleIn {
+                0% { transform: scale(0.95); opacity: 0; }
+                100% { transform: scale(1); opacity: 1; }
+              }
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "24px",
+                padding: "2rem",
+                width: "100%",
+                maxWidth: "540px",
+                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)",
+                border: "1px solid #f1f5f9",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                gap: "1.5rem",
+                animation: "scaleIn 0.2s ease-out"
+              }}
+            >
+              {/* Header */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ fontSize: "1.35rem", fontWeight: "800", color: "#1e293b", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <Wallet size={24} color={themeColor} /> Cổng nộp thuế điện tử trực tuyến
+                </h3>
+                <button
+                  onClick={() => setShowTaxPaymentModal(false)}
+                  style={{
+                    border: "none",
+                    backgroundColor: "transparent",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    fontSize: "1.5rem",
+                    lineHeight: 1,
+                    padding: "4px"
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Instructions */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                <div style={{ backgroundColor: themeBg, borderRadius: "16px", padding: "1.25rem", border: `1px solid ${activeCategory === "spa" ? "#ddd6fe" : activeCategory === "vet" ? "#b2ebe7" : "#ffe4e6"}` }}>
+                  <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.88rem", fontWeight: "600", color: "#64748b" }}>
+                    {taxInfo.isExempt ? "Số thuế nộp tạm tính (Tự nguyện):" : "Số thuế cần nộp kỳ này:"}
+                  </p>
+                  <p style={{ margin: 0, fontSize: "1.85rem", fontWeight: "900", color: "#1e293b" }}>{totalTaxDueAmt.toLocaleString("vi-VN")} ₫</p>
+                  <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.78rem", color: "#64748b" }}>
+                    Áp dụng thuế suất <span style={{ fontWeight: "700", color: themeColor }}>{taxRate}%</span> trên tổng doanh thu {totalRevenueAmt.toLocaleString("vi-VN")} ₫
+                    {taxInfo.isExempt && " (Ước tính theo giả định doanh thu năm vượt mốc 1 tỷ đồng)"}
+                  </p>
+                </div>
+
+                {/* Transfer Info */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", border: "1px solid #e2e8f0", borderRadius: "16px", padding: "1.25rem" }}>
+                  <h4 style={{ margin: 0, fontSize: "0.95rem", fontWeight: "700", color: "#334155" }}>Thông tin tài khoản Kho bạc Nhà nước</h4>
+                  
+                  <div style={{ display: "grid", gridTemplateColumns: "1.2fr 2fr", gap: "0.5rem 1rem", fontSize: "0.88rem" }}>
+                    <span style={{ color: "#64748b" }}>Ngân hàng thụ hưởng:</span>
+                    <span style={{ fontWeight: "600", color: "#1e293b" }}>VietinBank (Ngân hàng TMCP Công Thương Việt Nam)</span>
+                    
+                    <span style={{ color: "#64748b" }}>Số tài khoản:</span>
+                    <span style={{ fontWeight: "700", color: "#1e293b", letterSpacing: "0.5px" }}>113000999888</span>
+                    
+                    <span style={{ color: "#64748b" }}>Tên tài khoản:</span>
+                    <span style={{ fontWeight: "600", color: "#1e293b" }}>TONG CUC THUE - KHO BAC NHA NUOC</span>
+                    
+                    <span style={{ color: "#64748b" }}>Nội dung chuyển khoản:</span>
+                    <span style={{ fontWeight: "700", color: themeColor, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      {paymentCode}
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          navigator.clipboard.writeText(paymentCode);
+                          toast.success("Đã sao chép nội dung chuyển khoản!");
+                        }}
+                        style={{ border: "none", backgroundColor: "transparent", color: "#64748b", cursor: "pointer", display: "inline-flex" }}
+                      >
+                        <FileText size={14} />
+                      </button>
+                    </span>
+                  </div>
+                </div>
+
+                {/* QR Code section */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: "600", color: "#475569" }}>Quét mã QR dưới đây để thực hiện thanh toán nhanh:</p>
+                  <div style={{
+                    padding: "1rem",
+                    backgroundColor: "#ffffff",
+                    borderRadius: "16px",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 4px 10px rgba(0,0,0,0.03)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center"
+                  }}>
+                    {/* Simulated QR Code SVG */}
+                    <div style={{ position: "relative" }}>
+                      <svg width="180" height="180" viewBox="0 0 29 29" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M0 0h7v7H0V0zm1 1v5h5V1H1zm1 1h3v3H2V2zm0 6h1v1H2V8zm0 2h1v2H2v-2zm1-1h1v1H3V9zm1 2h1v1H4v-1zm-2 2h3v1H2v-1zm3-3h1v2H5v-2zm0 3v1h1v-1H5zm1-5h1v2H6V6zm1 2h1v1H7V8zm0 2h1v1H7v-1zm1-9h1v1H8V1zm1 2h1v2H9V3zm0 3h1v1H9V6zm-1 6h2v1H8v-1zm1 2h1v1H9v-1zm2-13h7v7h-7V1zm1 1v5h5V2h-5zm1 1h3v3h-3V3zm3 5h1v1h-1V8zm-2 2h1v1h-1v-1zm1 1h2v1h-2v-1zm1 2h1v1h-1v-1zm-4-1h1v1h-1v-1zm2 2h1v1h-1v-1zm3-7h1v1h-1V7zm0 2h1v1h-1V9zm0 2h1v2h-1v-2zm1-8h1v1h-1V3zm0 2h1v1h-1V5zm1-2h1v2h-1V3zm2 4h1v1h-1V7zm0 2h1v2h-1V9zm0 3h1v1h-1v-1zm-15 9h7v7H0v-7zm1 1v5h5v-5H1zm1 1h3v3H2v-3zm0 6h1v1H2v-1zm0 2h1v1H2v-1zm5-7h1v1H7v-1zm0 2h1v1H7v-1zm0 2h1v2H7v-2zm2-2h1v1H9v-1zm0 2h1v2H9v-2zm2-7h1v1h-1v-1zm1 2h1v1h-1v-1zm0 2h1v1h-1v-1zm1-3h2v1h-2v-1zm1 2h1v1h-1v-1zm0 2h1v1h-1v-1zm1-5h1v2h-1v-2zm1 3h1v1h-1v-1zm1 2h1v1h-1v-1zm1 1h1v1h-1v-1zm2-7h1v1h-1v-1zm0 2h1v1h-1v-1zm0 2h1v1h-1v-1zm1-5h1v1h-1V9zm0 2h1v1h-1v-1zm1 2h1v1h-1v-1zm1 1h1v1h-1v-1zm-7 4h1v1h-1v-1zm1 2h1v1h-1v-1zm1-1h1v2h-1v-2zm2 1h1v1h-1v-1zm0 2h1v1h-1v-1zm1-3h1v1h-1v-1zm1 2h1v1h-1v-1zm1 1h1v1h-1v-1z" fill="#1e293b"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", fontStyle: "italic", textAlign: "center" }}>
+                    *Sau khi hoàn tất chuyển khoản bằng QR hoặc chuyển khoản thủ công, vui lòng nhấn xác nhận phía dưới.
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTaxPaymentModal(false)}
+                  disabled={isPayingTax}
+                  style={{
+                    flex: 1,
+                    padding: "0.8rem",
+                    borderRadius: "12px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#475569",
+                    fontWeight: "700",
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
+                  className="hover-scale"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmPayment}
+                  disabled={isPayingTax}
+                  style={{
+                    flex: 2,
+                    padding: "0.8rem",
+                    borderRadius: "12px",
+                    border: "none",
+                    backgroundColor: isPayingTax ? "#94a3b8" : themeColor,
+                    color: "#ffffff",
+                    fontWeight: "700",
+                    fontSize: "0.95rem",
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "0.5rem"
+                  }}
+                  className="hover-scale"
+                >
+                  {isPayingTax ? (
+                    <>
+                      <span style={{ display: "inline-block", border: "2px solid #ffffff", borderTop: "2px solid transparent", borderRadius: "50%", width: "16px", height: "16px", animation: "spin 1s linear infinite" }}></span>
+                      Đang xác nhận giao dịch...
+                    </>
+                  ) : "Xác nhận đã chuyển khoản"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ORDER STATUS UPDATE MODAL */}
+      {selectedOrder && activeOrderModal === "updateStatus" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "24px",
+              padding: "2rem",
+              width: "100%",
+              maxWidth: "450px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)",
+              border: "1px solid #f1f5f9",
+              animation: "scaleIn 0.2s ease-out",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.5rem"
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "1.25rem", fontWeight: "800", color: "#1e293b", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                📦 Cập nhật trạng thái đơn #{selectedOrder.orderID}
+              </h3>
+              <button
+                onClick={() => {
+                  setActiveOrderModal(null);
+                  setSelectedOrder(null);
+                }}
+                style={{
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  lineHeight: 1,
+                  padding: "4px"
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Current Status */}
+            <div>
+              <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>TRẠNG THÁI HIỆN TẠI</p>
+              <div style={{
+                padding: "0.75rem 1rem",
+                borderRadius: "12px",
+                backgroundColor: selectedOrder.status === "Pending" ? "#fef3c7" : selectedOrder.status === "Shipping" ? "#dbeafe" : "#f1f5f9",
+                color: selectedOrder.status === "Pending" ? "#b45309" : selectedOrder.status === "Shipping" ? "#1d4ed8" : "#475569",
+                fontWeight: "700",
+                fontSize: "0.95rem"
+              }}>
+                {selectedOrder.status === "Pending" ? "⏳ Chờ xác nhận" : selectedOrder.status === "Shipping" ? "🚚 Đang giao hàng" : selectedOrder.status}
+              </div>
+            </div>
+
+            {/* Next Status Options */}
+            <div>
+              <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.85rem", fontWeight: "700", color: "#64748b" }}>CHUYỂN SANG TRẠNG THÁI</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {selectedOrder.status === "Pending" && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedOrderStatus("Shipping")}
+                    style={{
+                      padding: "0.85rem",
+                      borderRadius: "12px",
+                      border: selectedOrderStatus === "Shipping" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                      backgroundColor: selectedOrderStatus === "Shipping" ? "#eff6ff" : "#ffffff",
+                      color: selectedOrderStatus === "Shipping" ? "#1e40af" : "#475569",
+                      fontWeight: "700",
+                      textAlign: "left",
+                      cursor: "pointer",
+                      fontSize: "0.95rem",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem"
+                    }}
+                  >
+                    <span>🚚</span>
+                    <span>Đang giao hàng (Xác nhận đơn và gửi hàng)</span>
+                  </button>
+                )}
+
+                {selectedOrder.status === "Shipping" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderStatus("Completed")}
+                      style={{
+                        padding: "0.85rem",
+                        borderRadius: "12px",
+                        border: selectedOrderStatus === "Completed" ? "2px solid #10b981" : "1px solid #cbd5e1",
+                        backgroundColor: selectedOrderStatus === "Completed" ? "#ecfdf5" : "#ffffff",
+                        color: selectedOrderStatus === "Completed" ? "#065f46" : "#475569",
+                        fontWeight: "700",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontSize: "0.95rem",
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem"
+                      }}
+                    >
+                      <span>✓</span>
+                      <span>Đã hoàn thành (Khách nhận hàng thành công)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedOrderStatus("Cancelled_BomHang")}
+                      style={{
+                        padding: "0.85rem",
+                        borderRadius: "12px",
+                        border: selectedOrderStatus === "Cancelled_BomHang" ? "2px solid #ef4444" : "1px solid #cbd5e1",
+                        backgroundColor: selectedOrderStatus === "Cancelled_BomHang" ? "#fef2f2" : "#ffffff",
+                        color: selectedOrderStatus === "Cancelled_BomHang" ? "#991b1b" : "#475569",
+                        fontWeight: "700",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        fontSize: "0.95rem",
+                        transition: "all 0.2s",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem"
+                      }}
+                    >
+                      <span>❌</span>
+                      <span>Khách bom hàng (Hủy đơn/Trả lại kho)</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: "flex", gap: "1rem", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveOrderModal(null);
+                  setSelectedOrder(null);
+                }}
+                disabled={isUpdatingOrderStatus}
+                style={{
+                  flex: 1,
+                  padding: "0.8rem",
+                  borderRadius: "12px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#475569",
+                  fontWeight: "700",
+                  fontSize: "0.95rem",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+                className="hover-scale"
+              >
+                Đóng
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleUpdateOrderStatus}
+                disabled={isUpdatingOrderStatus || !selectedOrderStatus || selectedOrderStatus === selectedOrder.status}
+                style={{
+                  flex: 2,
+                  padding: "0.8rem",
+                  borderRadius: "12px",
+                  border: "none",
+                  backgroundColor: (isUpdatingOrderStatus || !selectedOrderStatus || selectedOrderStatus === selectedOrder.status)
+                    ? "#94a3b8"
+                    : "#ef4444",
+                  color: "#ffffff",
+                  fontWeight: "700",
+                  fontSize: "0.95rem",
+                  cursor: (isUpdatingOrderStatus || !selectedOrderStatus || selectedOrderStatus === selectedOrder.status) ? "not-allowed" : "pointer",
+                  transition: "all 0.2s",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem"
+                }}
+                className="hover-scale"
+              >
+                {isUpdatingOrderStatus ? (
+                  <>
+                    <span style={{ display: "inline-block", border: "2px solid #ffffff", borderTop: "2px solid transparent", borderRadius: "50%", width: "16px", height: "16px", animation: "spin 1s linear infinite" }}></span>
+                    Đang lưu...
+                  </>
+                ) : "✓ Xác nhận cập nhật"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ORDER DETAILS MODAL */}
+      {selectedOrder && activeOrderModal === "details" && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 200,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "24px",
+              padding: "2rem",
+              width: "100%",
+              maxWidth: "700px",
+              maxHeight: "85vh",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.15)",
+              border: "1px solid #f1f5f9",
+              animation: "scaleIn 0.2s ease-out",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.5rem",
+              overflowY: "auto"
+            }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ fontSize: "1.35rem", fontWeight: "800", color: "#1e293b", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                📋 Chi tiết đơn hàng #{selectedOrder.orderID}
+              </h3>
+              <button
+                onClick={() => {
+                  setActiveOrderModal(null);
+                  setSelectedOrder(null);
+                  setOrderDetailData(null);
+                }}
+                style={{
+                  border: "none",
+                  backgroundColor: "transparent",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  fontSize: "1.5rem",
+                  lineHeight: 1,
+                  padding: "4px"
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            {isLoadingOrderDetail ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "3rem 0" }}>
+                <span style={{ display: "inline-block", border: "4px solid #f3f3f3", borderTop: "4px solid #ef4444", borderRadius: "50%", width: "40px", height: "40px", animation: "spin 1s linear infinite" }}></span>
+                <p style={{ marginTop: "1rem", color: "#64748b", fontSize: "0.95rem" }}>Đang tải danh sách sản phẩm...</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+                
+                {/* Buyer / Address Section */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                  gap: "1.25rem",
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "16px",
+                  padding: "1.25rem",
+                  border: "1px solid #e2e8f0"
+                }}>
+                  <div>
+                    <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.85rem", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Người nhận hàng</h4>
+                    <p style={{ margin: 0, fontWeight: "700", color: "#1e293b" }}>{selectedOrder.customerName}</p>
+                    <p style={{ margin: "0.25rem 0 0 0", color: "#475569", fontSize: "0.9rem" }}>Số điện thoại: {selectedOrder.customerPhone}</p>
+                    <p style={{ margin: "0.25rem 0 0 0", color: "#475569", fontSize: "0.9rem" }}>Địa chỉ: {selectedOrder.shippingAddress}</p>
+                  </div>
+                  <div>
+                    <h4 style={{ margin: "0 0 0.5rem 0", fontSize: "0.85rem", fontWeight: "700", color: "#64748b", textTransform: "uppercase" }}>Chi tiết giao nhận</h4>
+                    <p style={{ margin: 0, color: "#475569", fontSize: "0.9rem" }}>
+                      Trạng thái đơn: <span style={{ fontWeight: "700", color: "#ef4444" }}>{selectedOrder.status}</span>
+                    </p>
+                    {orderDetailData?.ShippingCarrier && (
+                      <p style={{ margin: "0.25rem 0 0 0", color: "#475569", fontSize: "0.9rem" }}>
+                        Đơn vị vận chuyển: {orderDetailData.ShippingCarrier}
+                      </p>
+                    )}
+                    {orderDetailData?.TrackingNumber && (
+                      <p style={{ margin: "0.25rem 0 0 0", color: "#475569", fontSize: "0.9rem" }}>
+                        Mã vận đơn: <span style={{ fontWeight: "700", color: "#2563eb" }}>{orderDetailData.TrackingNumber}</span>
+                      </p>
+                    )}
+                    <p style={{ margin: "0.25rem 0 0 0", color: "#475569", fontSize: "0.9rem" }}>
+                      Phương thức: <span style={{ fontWeight: "600" }}>{orderDetailData?.PaymentMethod || "COD (Thanh toán khi nhận hàng)"}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ordered Items List */}
+                <div>
+                  <h4 style={{ margin: "0 0 0.75rem 0", fontSize: "0.95rem", fontWeight: "700", color: "#334155" }}>
+                    Sản phẩm đặt mua ({(orderDetailData?.OrderItems || orderDetailData?.orderDetails || []).length || 1})
+                  </h4>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                    {orderDetailData && (orderDetailData.OrderItems || orderDetailData.orderDetails) ? (
+                      (orderDetailData.OrderItems || orderDetailData.orderDetails).map((item, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "1rem",
+                            padding: "0.75rem",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "12px"
+                          }}
+                        >
+                          <img
+                            src={item.ProductImage || item.image || "https://via.placeholder.com/60"}
+                            alt={item.ProductName || item.name}
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              borderRadius: "8px",
+                              objectFit: "cover",
+                              backgroundColor: "#f1f5f9"
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: 0, fontWeight: "700", color: "#1e293b", fontSize: "0.95rem" }}>{item.ProductName || item.name || "Sản phẩm cửa hàng"}</p>
+                            <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.85rem" }}>Số lượng: {item.Quantity || item.quantity || 1}</p>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <p style={{ margin: 0, fontWeight: "700", color: "#ef4444" }}>
+                              {((item.Price || item.price || selectedOrder.totalAmount).toLocaleString("vi-VN"))} đ
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      /* Fallback listing with flat total order details if list API returned empty items list */
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "1rem",
+                          padding: "0.75rem",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "12px"
+                        }}
+                      >
+                        <div style={{
+                          width: "60px",
+                          height: "60px",
+                          borderRadius: "8px",
+                          backgroundColor: "#f1f5f9",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "1.5rem"
+                        }}>
+                          📦
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ margin: 0, fontWeight: "700", color: "#1e293b" }}>Giao dịch mua hàng từ AniHome Store</p>
+                          <p style={{ margin: "0.25rem 0 0 0", color: "#64748b", fontSize: "0.85rem" }}>Mã sản phẩm hoặc gói hàng</p>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <p style={{ margin: 0, fontWeight: "700", color: "#ef4444" }}>
+                            {(selectedOrder.totalAmount || 0).toLocaleString("vi-VN")} đ
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Price Breakdown */}
+                <div style={{
+                  borderTop: "1px solid #f1f5f9",
+                  paddingTop: "1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                  alignItems: "flex-end"
+                }}>
+                  <div style={{ display: "flex", gap: "2rem", fontSize: "0.9rem", color: "#64748b" }}>
+                    <span>Tạm tính:</span>
+                    <span style={{ fontWeight: "600", width: "120px", textAlign: "right" }}>
+                      {(orderDetailData?.SubTotal || selectedOrder.totalAmount).toLocaleString("vi-VN")} đ
+                    </span>
+                  </div>
+                  {orderDetailData?.ShippingFee !== undefined && (
+                    <div style={{ display: "flex", gap: "2rem", fontSize: "0.9rem", color: "#64748b" }}>
+                      <span>Phí giao hàng:</span>
+                      <span style={{ fontWeight: "600", width: "120px", textAlign: "right" }}>
+                        {(orderDetailData.ShippingFee).toLocaleString("vi-VN")} đ
+                      </span>
+                    </div>
+                  )}
+                  {orderDetailData?.DiscountAmount !== undefined && orderDetailData.DiscountAmount > 0 && (
+                    <div style={{ display: "flex", gap: "2rem", fontSize: "0.9rem", color: "#10b981" }}>
+                      <span>Giảm giá:</span>
+                      <span style={{ fontWeight: "600", width: "120px", textAlign: "right" }}>
+                        -{(orderDetailData.DiscountAmount).toLocaleString("vi-VN")} đ
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "2rem", fontSize: "1.1rem", color: "#1e293b", fontWeight: "800", borderTop: "2px solid #f1f5f9", paddingTop: "0.5rem", marginTop: "0.25rem" }}>
+                    <span>Tổng cộng:</span>
+                    <span style={{ color: "#ef4444", width: "120px", textAlign: "right" }}>
+                      {(orderDetailData?.TotalAmount || selectedOrder.totalAmount).toLocaleString("vi-VN")} đ
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "0.5rem" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveOrderModal(null);
+                  setSelectedOrder(null);
+                  setOrderDetailData(null);
+                }}
+                style={{
+                  padding: "0.75rem 2rem",
+                  borderRadius: "12px",
+                  border: "none",
+                  backgroundColor: "#f1f5f9",
+                  color: "#475569",
+                  fontWeight: "700",
+                  fontSize: "0.95rem",
+                  cursor: "pointer",
+                  transition: "all 0.2s"
+                }}
+                className="hover-scale"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -44,7 +44,9 @@ const CartPage = () => {
         const loadInitialData = async () => {
             setIsLoadingCart(true);
 
-            // Load cart
+            let allItems = [];
+
+            // Load backend cart
             const cartResult = await getCart();
             if (cartResult.success && cartResult.data) {
                 const items = (cartResult.data.items || []).map(item => ({
@@ -54,12 +56,35 @@ const CartPage = () => {
                     price: item.price || 0,
                     quantity: item.quantity || 1,
                     imageUrl: item.productImage || "https://via.placeholder.com/80",
+                    isShelterProduct: true,
                     selected: true,
                 }));
-                setCartItems(items);
-            } else {
-                toast.error("Không thể tải giỏ hàng");
+                allItems = [...allItems, ...items];
             }
+
+            // Load local cart
+            try {
+                const localCartKey = user ? `local_cart_items_${user.userId || user.id}` : "local_cart_items_guest";
+                const savedLocal = localStorage.getItem(localCartKey);
+                if (savedLocal) {
+                    const localItems = JSON.parse(savedLocal).map(item => ({
+                        id: `local-${item.id}`,
+                        localId: item.id,
+                        productName: item.productName || "Sản phẩm đối tác",
+                        price: item.price || 0,
+                        quantity: item.quantity || 1,
+                        imageUrl: item.imageUrl || "https://via.placeholder.com/80",
+                        isShelterProduct: false,
+                        selected: true,
+                        profileID: item.profileID,
+                    }));
+                    allItems = [...allItems, ...localItems];
+                }
+            } catch (err) {
+                console.error("Failed to parse local cart items:", err);
+            }
+
+            setCartItems(allItems);
 
             // Load provinces
             setLoadingProvinces(true);
@@ -76,7 +101,7 @@ const CartPage = () => {
         };
 
         loadInitialData();
-    }, []);
+    }, [user]);
 
     // Load districts when province changes
     useEffect(() => {
@@ -139,7 +164,7 @@ const CartPage = () => {
         if (newQuantity < 1) return;
 
         const item = cartItems.find(i => i.id === itemId);
-        if (!item || !item.cartItemID) {
+        if (!item) {
             toast.error("Không tìm thấy sản phẩm");
             return;
         }
@@ -149,13 +174,37 @@ const CartPage = () => {
             return;
         }
 
-        const result = await updateCartItem(item.cartItemID, newQuantity);
-        if (result.success) {
-            setCartItems(cartItems.map((i) =>
-                i.id === itemId ? { ...i, quantity: newQuantity } : i
-            ));
+        if (item.isShelterProduct && item.cartItemID) {
+            const result = await updateCartItem(item.cartItemID, newQuantity);
+            if (result.success) {
+                setCartItems(cartItems.map((i) =>
+                    i.id === itemId ? { ...i, quantity: newQuantity } : i
+                ));
+                window.dispatchEvent(new Event("cart-updated"));
+            } else {
+                toast.error(result.error || "Không thể cập nhật số lượng");
+            }
         } else {
-            toast.error(result.error || "Không thể cập nhật số lượng");
+            // Local storage update
+            try {
+                const localCartKey = user ? `local_cart_items_${user.userId || user.id}` : "local_cart_items_guest";
+                const savedLocal = localStorage.getItem(localCartKey);
+                if (savedLocal) {
+                    let localItems = JSON.parse(savedLocal);
+                    const localIdx = localItems.findIndex(i => i.id === item.localId && !i.isShelterProduct);
+                    if (localIdx !== -1) {
+                        localItems[localIdx].quantity = newQuantity;
+                        localStorage.setItem(localCartKey, JSON.stringify(localItems));
+                        
+                        setCartItems(cartItems.map((i) =>
+                            i.id === itemId ? { ...i, quantity: newQuantity } : i
+                        ));
+                        window.dispatchEvent(new Event("cart-updated"));
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to update local cart quantity:", err);
+            }
         }
     };
 
@@ -164,12 +213,32 @@ const CartPage = () => {
         const item = cartItems.find(i => i.id === itemId);
         if (!item) return;
 
-        const result = await removeFromCart(item.cartItemID);
-        if (result.success) {
-            setCartItems(cartItems.filter((i) => i.id !== itemId));
-            toast.success("Đã xóa sản phẩm");
+        if (item.isShelterProduct && item.cartItemID) {
+            const result = await removeFromCart(item.cartItemID);
+            if (result.success) {
+                setCartItems(cartItems.filter((i) => i.id !== itemId));
+                toast.success("Đã xóa sản phẩm");
+                window.dispatchEvent(new Event("cart-updated"));
+            } else {
+                toast.error(result.error || "Không thể xóa sản phẩm");
+            }
         } else {
-            toast.error(result.error || "Không thể xóa sản phẩm");
+            // Local storage remove
+            try {
+                const localCartKey = user ? `local_cart_items_${user.userId || user.id}` : "local_cart_items_guest";
+                const savedLocal = localStorage.getItem(localCartKey);
+                if (savedLocal) {
+                    let localItems = JSON.parse(savedLocal);
+                    localItems = localItems.filter(i => !(i.id === item.localId && !i.isShelterProduct));
+                    localStorage.setItem(localCartKey, JSON.stringify(localItems));
+                    
+                    setCartItems(cartItems.filter((i) => i.id !== itemId));
+                    toast.success("Đã xóa sản phẩm");
+                    window.dispatchEvent(new Event("cart-updated"));
+                }
+            } catch (err) {
+                console.error("Failed to remove local cart item:", err);
+            }
         }
     };
 

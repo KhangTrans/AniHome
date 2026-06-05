@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { PawPrint, LayoutDashboard, Menu, X, LogOut, User, ShoppingCart } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,42 @@ const Navbar = () => {
   const location = useLocation();
   const isHome = location.pathname === "/";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+
+  const updateCartCount = async () => {
+    if (!user) {
+      setCartCount(0);
+      return;
+    }
+    let totalCount = 0;
+    try {
+      const { getCart } = await import("../services/public/cartService");
+      const res = await getCart();
+      if (res.success && res.data) {
+        totalCount += (res.data.items || []).reduce((sum, item) => sum + (item.quantity || 1), 0);
+      }
+    } catch (err) {
+      console.log("Failed to fetch backend cart count in navbar:", err);
+    }
+    try {
+      const localCartKey = `local_cart_items_${user.userId || user.id}`;
+      const savedLocal = localStorage.getItem(localCartKey);
+      if (savedLocal) {
+        totalCount += JSON.parse(savedLocal).reduce((sum, item) => sum + (item.quantity || 1), 0);
+      }
+    } catch (err) {
+      console.log("Failed to fetch local cart count in navbar:", err);
+    }
+    setCartCount(totalCount);
+  };
+
+  useEffect(() => {
+    updateCartCount();
+    window.addEventListener("cart-updated", updateCartCount);
+    return () => {
+      window.removeEventListener("cart-updated", updateCartCount);
+    };
+  }, [user]);
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
@@ -137,20 +173,43 @@ const Navbar = () => {
             >
               Dịch Vụ
             </Link>
-            <Link
-              to="/cart"
-              className="hover-text-primary transition-colors"
-              style={{
-                textDecoration: "none",
-                color: location.pathname === "/cart" ? "var(--primary)" : "inherit",
-                display: "flex",
-                alignItems: "center",
-                fontSize: "1.2rem",
-              }}
-              title="Giỏ Hàng"
-            >
-              <ShoppingCart size={20} />
-            </Link>
+            {user && (
+              <Link
+                to="/cart"
+                className="hover-text-primary transition-colors"
+                style={{
+                  textDecoration: "none",
+                  color: location.pathname === "/cart" ? "var(--primary)" : "inherit",
+                  display: "flex",
+                  alignItems: "center",
+                  fontSize: "1.2rem",
+                  position: "relative"
+                }}
+                title="Giỏ Hàng"
+              >
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <span style={{
+                    position: "absolute",
+                    top: "-8px",
+                    right: "-10px",
+                    background: "var(--primary)",
+                    color: "white",
+                    fontSize: "0.7rem",
+                    fontWeight: "bold",
+                    borderRadius: "50%",
+                    width: "18px",
+                    height: "18px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: "0 2px 5px rgba(0,0,0,0.2)"
+                  }}>
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+            )}
           </div>
 
           <div

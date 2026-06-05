@@ -13,6 +13,7 @@ import Navbar from "../../components/Navbar";
 import Footer from "../../components/Footer";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
+import { createOrder } from "../../services/public/marketplaceService";
 
 const PaymentPage = () => {
     const navigate = useNavigate();
@@ -83,26 +84,49 @@ const PaymentPage = () => {
         setIsProcessing(true);
 
         try {
-            // Simulate payment processing
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Filter partner products to create backend orders
+            const partnerItems = items.filter(item => !item.isShelterProduct);
+            
+            if (partnerItems.length > 0) {
+                let anyOrderCreated = false;
+                for (const item of partnerItems) {
+                    const orderData = {
+                        productID: Number(item.localId),
+                        quantity: Number(item.quantity),
+                        shippingAddress: address.fullAddress,
+                        note: `Thanh toán qua giỏ hàng - Phương thức: ${selectedPaymentMethod}`,
+                    };
+                    
+                    const profileId = item.profileID || 1;
+                    const result = await createOrder(Number(profileId), orderData);
+                    if (result.success) {
+                        anyOrderCreated = true;
+                    } else {
+                        console.error(`Failed to create order for product ${item.productName}:`, result.message);
+                    }
+                }
+                
+                if (partnerItems.length > 0 && !anyOrderCreated) {
+                    throw new Error("Không thể tạo đơn hàng trên hệ thống. Vui lòng thử lại.");
+                }
+            } else {
+                // If only shelter items (fundraising/donation), simulate a small wait
+                await new Promise((resolve) => setTimeout(resolve, 1500));
+            }
 
-            // Generate Order ID
+            // Generate Order ID for confirmation display
             const orderId = `HP${Date.now()}`;
 
-            // Create order object
-            const orderData = {
-                orderId,
-                items,
-                address,
-                shippingCarrier,
-                shippingFee,
-                paymentMethod: selectedPaymentMethod,
-                total,
-                createdAt: new Date().toISOString(),
-            };
-
-            // TODO: Send to backend API
-            console.log("Order created:", orderData);
+            // Clear carts on payment success
+            const localCartKey = user ? `local_cart_items_${user.userId || user.id}` : "local_cart_items_guest";
+            localStorage.removeItem(localCartKey);
+            try {
+                const { clearCart } = await import("../../services/public/cartService");
+                await clearCart();
+            } catch (err) {
+                console.error("Failed to clear database cart:", err);
+            }
+            window.dispatchEvent(new Event("cart-updated"));
 
             // Navigate to confirmation page
             navigate("/order-confirmation", {
@@ -120,7 +144,7 @@ const PaymentPage = () => {
             toast.success("Thanh toán thành công!");
         } catch (error) {
             console.error("Payment error:", error);
-            toast.error("Thanh toán thất bại. Vui lòng thử lại.");
+            toast.error(error.message || "Thanh toán thất bại. Vui lòng thử lại.");
         } finally {
             setIsProcessing(false);
         }
